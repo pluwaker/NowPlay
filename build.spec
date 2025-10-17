@@ -3,14 +3,15 @@
 block_cipher = None
 
 a = Analysis(
-    ['run.py'],
+    ['main.py'],
     pathex=[],
     binaries=[],
     datas=[
         ('ui/pages/*.py', 'ui/pages'),
+        ('ui/__init__.py', 'ui'),
+        ('ui/pages/__init__.py', 'ui/pages'),
         ('now_server/*.py', 'now_server'),
-        ('now_server/vusialisation.html', 'now_server'),
-        ('songinfo', 'songinfo')
+        ('now_server/visualisation.html', 'now_server'),
     ],
     hiddenimports=[
         'customtkinter',
@@ -59,11 +60,11 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Измени на True если нужна консоль для отладки
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',  # Добавь иконку если есть
+    icon='icon.ico',
 )

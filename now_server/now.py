@@ -25,6 +25,10 @@ output_dir = PROJECT_ROOT / "songinfo"
 output_dir.mkdir(exist_ok=True)
 output_dir = str(output_dir)
 
+visual_dir = PROJECT_ROOT / "now_server"
+visual_dir.mkdir(exist_ok=True)
+visual_dir = str(visual_dir)
+
 app = web.Application()
 routes = web.RouteTableDef()
 
@@ -125,7 +129,7 @@ async def media_monitor():
 
 @routes.get('/')
 async def index(request):
-    return web.FileResponse(os.path.join(output_dir, 'visualisation.html'))
+    return web.FileResponse(os.path.join(visual_dir, 'visualisation.html'))
 
 
 @routes.get('/cover')

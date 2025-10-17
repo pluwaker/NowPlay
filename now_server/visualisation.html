@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Now Playing</title>
+    <style>
+        :root {
+            --bg-color: rgba(30, 30, 30, 1);
+            --text-color: #ffffff;
+            --accent-color: #1db954;
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #121212;
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .player-container {
+            background: var(--bg-color);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            width: 280px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+        .cover-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .album-cover {
+            width: 100%;
+            border-radius: 8px;
+            aspect-ratio: 1;
+            object-fit: cover;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .track-info {
+            text-align: center;
+            padding: 0 10px;
+        }
+        .track-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .artist-name {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .visualizer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 30px;
+            margin: 15px 0;
+            gap: 3px;
+        }
+        .visualizer-bar {
+            background: var(--accent-color);
+            width: 4px;
+            border-radius: 2px;
+            transition: height 0.2s ease-out;
+        }
+        .status {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.3);
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container" id="player">
+        <div class="cover-container">
+            <img class="album-cover" id="cover" src="" alt="Album Cover">
+        </div>
+        <div class="track-info">
+            <div class="track-title" id="title">Не воспроизводится</div>
+            <div class="artist-name" id="artist">Нет данных</div>
+        </div>
+        <div class="visualizer" id="visualizer"></div>
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+    const player = document.getElementById('player');
+    const cover = document.getElementById('cover');
+    const title = document.getElementById('title');
+    const artist = document.getElementById('artist');
+    const status = document.getElementById('status');
+    const visualizer = document.getElementById('visualizer');
+
+    // Создаём 12 полосок визуализатора
+    for (let i = 0; i < 12; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'visualizer-bar';
+        bar.style.height = '2px';
+        visualizer.appendChild(bar);
+    }
+    const bars = document.querySelectorAll('.visualizer-bar');
+
+    let ws;
+    let reconnectTimer;
+    const RECONNECT_DELAY = 3000;
+    let animationFrame;
+
+    // Анимация визуализатора
+    function animateVisualizer() {
+        bars.forEach((bar, index) => {
+            // Создаём "псевдо-случайные" значения для анимации
+            const time = Date.now() * 0.002;
+            const offset = index * 0.3;
+            const height = 2 + Math.abs(Math.sin(time + offset) * 28);
+            bar.style.height = `${height}px`;
+            bar.style.opacity = 0.3 + (height / 30) * 0.7;
+        });
+        animationFrame = requestAnimationFrame(animateVisualizer);
+    }
+
+    // Остановка анимации
+    function stopVisualizer() {
+        cancelAnimationFrame(animationFrame);
+        bars.forEach(bar => {
+            bar.style.height = '2px';
+            bar.style.opacity = '0.3';
+        });
+    }
+
+    // Установка статуса
+    function setStatus(text) {
+        status.textContent = text;
+    }
+
+    // Обновление данных плеера
+    function updatePlayer(data) {
+        if (data.status === 'inactive') {
+            title.textContent = "Плеер не обнаружен";
+            artist.textContent = "Запустите медиа-плеер";
+            cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+UGxheWVyIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+            stopVisualizer();
+            return;
+        }
+
+        title.textContent = data.title || "Неизвестный трек";
+        artist.textContent = data.artist || "Неизвестный исполнитель";
+
+        if (data.cover_url) {
+            cover.src = data.cover_url + `&t=${Date.now()}`;
+            cover.onerror = () => {
+                cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+            };
+        }
+
+        player.style.opacity = 1;
+        setStatus("");
+        animateVisualizer();
+    }
+
+    // Подключение к WebSocket
+    function connect() {
+        setStatus("Подключение...");
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => {
+            setStatus("");
+            ws.send(JSON.stringify({type: "get_status"}));
+        };
+
+        ws.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                if (data.type === 'init' || data.type === 'update') {
+                    updatePlayer(data.data);
+                }
+            } catch (err) {
+                console.error("Ошибка обработки сообщения:", err);
+            }
+        };
+
+        ws.onclose = () => {
+            setStatus("Соединение потеряно");
+            stopVisualizer();
+            reconnect();
+        };
+
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            stopVisualizer();
+            reconnect();
+        };
+    }
+
+    // Переподключение
+    function reconnect() {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, RECONNECT_DELAY);
+    }
+
+    // Запуск при загрузке
+    document.addEventListener('DOMContentLoaded', () => {
+        connect();
+    });
+
+    // Остановка анимации при скрытии вкладки
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopVisualizer();
+        } else {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                animateVisualizer();
+            }
+        }
+    });
+    </script>
+</body>
+</html>

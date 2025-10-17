@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Now Playing</title>
+    <style>
+        :root {
+            --bg-color: rgba(30, 30, 30, 1);  /* Цвет подложки */
+            --text-color: #ffffff;             /* Цвет текста */
+            --wave-color: #1db954;             /* Цвет волны */
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #121212;
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .player-container {
+            background: var(--bg-color);       /* ПОДЛОЖКА */
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            width: 280px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+        .cover-container {
+            position: relative;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .album-cover {
+            width: 100%;
+            border-radius: 8px;
+            aspect-ratio: 1;
+            object-fit: cover;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        .track-info {
+            text-align: center;
+            padding: 0 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .track-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            color: var(--text-color);          /* ЦВЕТ ТЕКСТА */
+            transition: transform 0.3s ease;
+        }
+        .artist-name {
+            font-size: 14px;
+            color: var(--text-color);          /* ЦВЕТ ТЕКСТА */
+            opacity: 0.8;                      /* Полупрозрачный */
+            margin-bottom: 12px;
+            white-space: nowrap;
+            transition: transform 0.3s ease;
+        }
+        .visualizer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 30px;
+            margin: 15px 0;
+            gap: 3px;
+        }
+        .visualizer-bar {
+            background: var(--wave-color);     /* Цвет волны */
+            width: 4px;
+            border-radius: 2px;
+            transition: height 0.2s ease-out;
+        }
+        .status {
+            font-size: 11px;
+            color: var(--text-color);          /* ЦВЕТ ТЕКСТА */
+            opacity: 0.3;                      /* Еще более прозрачный */
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        /* Анимации для прокрутки текста */
+        @keyframes scroll-text {
+            0% {
+                transform: translateX(100%);
+            }
+            10% {
+                transform: translateX(0%);
+            }
+            80% {
+                transform: translateX(0%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
+        .scrolling {
+            animation: scroll-text 15s linear infinite;
+            display: inline-block;
+            padding-left: 100%;
+        }
+
+        .scrolling-paused {
+            animation-play-state: paused;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container" id="player">
+        <div class="cover-container">
+            <img class="album-cover" id="cover" src="" alt="Album Cover">
+        </div>
+        <div class="track-info">
+            <div class="track-title" id="title">Не воспроизводится</div>
+            <div class="artist-name" id="artist">Нет данных</div>
+        </div>
+        <div class="visualizer" id="visualizer"></div>
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+    const player = document.getElementById('player');
+    const cover = document.getElementById('cover');
+    const title = document.getElementById('title');
+    const artist = document.getElementById('artist');
+    const status = document.getElementById('status');
+    const visualizer = document.getElementById('visualizer');
+
+    // Создаём 12 полосок визуализатора
+    for (let i = 0; i < 12; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'visualizer-bar';
+        bar.style.height = '2px';
+        visualizer.appendChild(bar);
+    }
+    const bars = document.querySelectorAll('.visualizer-bar');
+
+    let ws;
+    let reconnectTimer;
+    const RECONNECT_DELAY = 3000;
+    let animationFrame;
+    let currentConfig = {};
+    let scrollAnimations = {
+        title: null,
+        artist: null
+    };
+
+    // ФУНКЦИЯ ПРОВЕРКИ НУЖНА ЛИ ПРОКРУТКА
+    function needsScrolling(element) {
+        return element.scrollWidth > element.parentElement.offsetWidth;
+    }
+
+    // ФУНКЦИЯ УПРАВЛЕНИЯ ПРОКРУТКОЙ
+    function manageScrolling(element, text) {
+        // Останавливаем предыдущую анимацию
+        if (scrollAnimations[element.id]) {
+            clearTimeout(scrollAnimations[element.id]);
+        }
+
+        // Сбрасываем стили
+        element.classList.remove('scrolling', 'scrolling-paused');
+        element.style.transform = 'translateX(0)';
+        element.textContent = text;
+
+        // Проверяем, нужна ли прокрутка
+        if (needsScrolling(element)) {
+            // Добавляем класс для прокрутки
+            element.classList.add('scrolling');
+
+            // Пауза при наведении
+            element.addEventListener('mouseenter', () => {
+                element.classList.add('scrolling-paused');
+            });
+
+            element.addEventListener('mouseleave', () => {
+                element.classList.remove('scrolling-paused');
+            });
+        } else {
+            element.classList.remove('scrolling', 'scrolling-paused');
+        }
+    }
+
+    // ФУНКЦИЯ ПРИМЕНЕНИЯ НАСТРОЕК
+    function applyConfig(config) {
+        if (config) {
+            currentConfig = config;
+            console.log('Применяем настройки:', config);
+
+            // ПРИМЕНЯЕМ ОСНОВНОЙ ЦВЕТ К ПОДЛОЖКЕ
+            document.documentElement.style.setProperty('--bg-color', config.main_color || 'rgba(30, 30, 30, 1)');
+
+            // ПРИМЕНЯЕМ ЦВЕТ ТЕКСТА
+            document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
+
+            // ПРИМЕНЯЕМ ЦВЕТ ВОЛНЫ
+            document.documentElement.style.setProperty('--wave-color', config.wave_color || '#1db954');
+
+            // Управляем визуализатором
+            if (config.wave_enabled) {
+                animateVisualizer();
+            } else {
+                stopVisualizer();
+            }
+        }
+    }
+
+    // Анимация визуализатора
+    function animateVisualizer() {
+        if (!currentConfig.wave_enabled) {
+            stopVisualizer();
+            return;
+        }
+
+        bars.forEach((bar, index) => {
+            const time = Date.now() * 0.002;
+            const offset = index * 0.3;
+            const height = 2 + Math.abs(Math.sin(time + offset) * 28);
+            bar.style.height = `${height}px`;
+            bar.style.opacity = 0.3 + (height / 30) * 0.7;
+        });
+        animationFrame = requestAnimationFrame(animateVisualizer);
+    }
+
+    // Остановка анимации
+    function stopVisualizer() {
+        cancelAnimationFrame(animationFrame);
+        bars.forEach(bar => {
+            bar.style.height = '2px';
+            bar.style.opacity = '0.3';
+        });
+    }
+
+    // Установка статуса
+    function setStatus(text) {
+        status.textContent = text;
+    }
+
+    // Обновление данных плеера
+    function updatePlayer(data) {
+        if (data.status === 'inactive') {
+            title.textContent = "Плеер не обнаружен";
+            artist.textContent = "Запустите медиа-плеер";
+            cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+UGxheWVyIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+            stopVisualizer();
+
+            // Сбрасываем прокрутку
+            manageScrolling(title, "Плеер не обнаружен");
+            manageScrolling(artist, "Запустите медиа-плеер");
+            return;
+        }
+
+        const newTitle = data.title || "Неизвестный трек";
+        const newArtist = data.artist || "Неизвестный исполнитель";
+
+        // Обновляем текст с прокруткой
+        manageScrolling(title, newTitle);
+        manageScrolling(artist, newArtist);
+
+        if (data.cover_url) {
+            cover.src = data.cover_url + `&t=${Date.now()}`;
+            cover.onerror = () => {
+                cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+            };
+        }
+
+        player.style.opacity = 1;
+        setStatus("");
+
+        // Запускаем визуализатор если включен в настройках
+        if (currentConfig.wave_enabled !== false) {
+            animateVisualizer();
+        }
+    }
+
+    // Подключение к WebSocket
+    function connect() {
+        setStatus("Подключение...");
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => {
+            setStatus("");
+        };
+
+        ws.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.log('Получены данные:', data);
+
+                if (data.type === 'init' || data.type === 'update') {
+                    updatePlayer(data.data);
+                    if (data.data.config) {
+                        applyConfig(data.data.config);
+                    }
+                } else if (data.type === 'config_update') {
+                    // Применяем новые настройки
+                    applyConfig(data.config);
+                }
+            } catch (err) {
+                console.error("Ошибка обработки сообщения:", err);
+            }
+        };
+
+        ws.onclose = () => {
+            setStatus("Соединение потеряно");
+            stopVisualizer();
+            reconnect();
+        };
+
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            stopVisualizer();
+            reconnect();
+        };
+    }
+
+    // Переподключение
+    function reconnect() {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, RECONNECT_DELAY);
+    }
+
+    // Запуск при загрузке
+    document.addEventListener('DOMContentLoaded', () => {
+        connect();
+
+        // Инициализируем прокрутку для начального текста
+        setTimeout(() => {
+            manageScrolling(title, title.textContent);
+            manageScrolling(artist, artist.textContent);
+        }, 100);
+    });
+
+    // Остановка анимации при скрытии вкладки
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopVisualizer();
+            // Пауза прокрутки текста
+            title.classList.add('scrolling-paused');
+            artist.classList.add('scrolling-paused');
+        } else {
+            if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
+                animateVisualizer();
+            }
+            // Возобновляем прокрутку текста
+            title.classList.remove('scrolling-paused');
+            artist.classList.remove('scrolling-paused');
+        }
+    });
+
+    // Пересчет прокрутки при изменении размера окна
+    window.addEventListener('resize', () => {
+        setTimeout(() => {
+            manageScrolling(title, title.textContent);
+            manageScrolling(artist, artist.textContent);
+        }, 100);
+    });
+    </script>
+</body>
+</html>

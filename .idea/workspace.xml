@@ -4,18 +4,51 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="" />
+    <list default="true" id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/build.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" afterPath="$PROJECT_DIR$/build.spec" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/Analysis-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/EXE-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PKG-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.pyz" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.pyz" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/base_library.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/warn-build.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/warn-build.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/xref-build.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/xref-build.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/NowPlayServer.exe" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 1
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "pluwaker"
+  }
 }]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/pluwaker/NowPlay.git",
+    "accountId": "e8424930-457a-4348-8b3a-d96e44487614"
+  }
+}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
   <component name="ProjectId" id="34CQRWhQMYm4ItgrPGHE6fTETvV" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -26,6 +59,7 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python.main.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
     "settings.editor.selected.configurable": "preferences.pluginManager"

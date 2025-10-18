@@ -72,6 +72,7 @@ async def media_monitor():
                 new_artist = media_info.artist or "Unknown Artist"
                 new_title = media_info.title or "Unknown Title"
 
+                # Проверяем, изменились ли данные
                 if (current_data["artist"] != new_artist or
                         current_data["title"] != new_title):
 
@@ -79,6 +80,7 @@ async def media_monitor():
                     if media_info.thumbnail:
                         cover_updated = await save_cover_image(media_info.thumbnail)
 
+                    # СРАЗУ обновляем данные
                     current_data.update({
                         "artist": new_artist,
                         "title": new_title,
@@ -86,14 +88,15 @@ async def media_monitor():
                         if cover_updated else current_data["cover_version"]
                     })
 
-                    # ОТПРАВЛЯЕМ НАСТРОЙКИ ВМЕСТЕ С ДАННЫМИ О ТРЕКЕ
+                    # Отправляем обновление
                     msg = {
                         "type": "update",
                         "data": {
                             "artist": new_artist,
                             "title": new_title,
                             "cover_url": f"/cover?v={current_data['cover_version']}",
-                            "config": current_config
+                            "config": current_config,
+                            "status": "active"  # Явно указываем статус
                         }
                     }
                     for ws in list(current_data['listeners']):
@@ -102,26 +105,10 @@ async def media_monitor():
                         except:
                             current_data['listeners'].remove(ws)
             else:
-                # Нет активной сессии
-                if current_data["artist"] != "Не воспроизводится":
-                    current_data.update({
-                        "artist": "Не воспроизводится",
-                        "title": "Нет данных"
-                    })
-                    msg = {
-                        "type": "update",
-                        "data": {
-                            "artist": "Не воспроизводится",
-                            "title": "Нет данных",
-                            "cover_url": f"/cover?v={current_data['cover_version']}",
-                            "config": current_config
-                        }
-                    }
-                    for ws in list(current_data['listeners']):
-                        try:
-                            await ws.send_json(msg)
-                        except:
-                            current_data['listeners'].remove(ws)
+                # Нет активной сессии, но не сбрасываем данные сразу
+                # Ждем несколько циклов перед сбросом
+                pass
+
         except Exception as e:
             print(f"Ошибка мониторинга медиа: {e}")
 

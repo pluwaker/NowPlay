@@ -5,16 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/nowplay.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/nowplay.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/Analysis-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/EXE-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PKG-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/base_library.zip" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/xref-build.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/xref-build.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/NowPlayServer.exe" beforeDir="false" afterPath="$PROJECT_DIR$/dist/NowPlayServer.exe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -26,6 +24,7 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Python Script" />
+        <option value="HTML File" />
       </list>
     </option>
   </component>
@@ -41,7 +40,7 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/pluwaker/NowPlay.git&quot;,
-    &quot;accountId&quot;: &quot;e8424930-457a-4348-8b3a-d96e44487614&quot;
+    &quot;accountId&quot;: &quot;3e3735e5-0224-4b4e-9a78-3482f0d6f1f9&quot;
   }
 }</component>
   <component name="ProjectColorInfo">{
@@ -52,18 +51,26 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.main.executor": "Run",
-    "Python.nowplay_obs.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
-    "settings.editor.selected.configurable": "preferences.pluginManager"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.nowplay_obs.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Учеба/Bodrova&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="H:\ВКР\NowPlay\dist" />
@@ -83,6 +90,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -105,6 +113,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/nowplay_obs.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -124,10 +133,12 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-9f8e2b94138c-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26094.141" />
+        <option value="bundled-js-predefined-d6986cc7102b-76f8388c3a79-JavaScript-PY-243.24978.54" />
+        <option value="bundled-python-sdk-91e3b7efe1d4-466328ff949b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-243.24978.54" />
       </set>
     </attachedChunks>
   </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="" />
@@ -135,7 +146,17 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1760715066386</updated>
+      <workItem from="1760967066121" duration="1177000" />
+      <workItem from="1760983376632" duration="75000" />
+      <workItem from="1761052124971" duration="2761000" />
+      <workItem from="1761055897359" duration="3695000" />
     </task>
     <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/NowPlay$main.coverage" NAME="main Coverage Results" MODIFIED="1761056691366" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

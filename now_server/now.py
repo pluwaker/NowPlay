@@ -37,7 +37,10 @@ current_data = {
     "artist": "Не воспроизводится",
     "title": "Нет данных",
     "cover_version": 1,
-    "listeners": set()
+    "listeners": set(),
+    "position": 0,      # текущая позиция в секундах
+    "duration": 0,      # длительность трека в секундах
+    "is_playing": False # статус воспроизведения
 }
 
 
@@ -72,31 +75,48 @@ async def media_monitor():
                 new_artist = media_info.artist or "Unknown Artist"
                 new_title = media_info.title or "Unknown Title"
 
+                # ПОЛУЧАЕМ ДАННЫЕ О ПРОГРЕССЕ
+                timeline_properties = current_session.get_timeline_properties()
+                playback_info = current_session.get_playback_info()
+
+                position = timeline_properties.position.total_seconds() if timeline_properties else 0
+                duration = timeline_properties.end_time.total_seconds() if timeline_properties else 0
+                is_playing = playback_info.playback_status == 4  # 4 = Playing
+
                 # Проверяем, изменились ли данные
                 if (current_data["artist"] != new_artist or
-                        current_data["title"] != new_title):
+                        current_data["title"] != new_title or
+                        current_data.get("position") != position or
+                        current_data.get("duration") != duration or
+                        current_data.get("is_playing") != is_playing):
 
                     cover_updated = False
                     if media_info.thumbnail:
                         cover_updated = await save_cover_image(media_info.thumbnail)
 
-                    # СРАЗУ обновляем данные
+                    # ОБНОВЛЯЕМ ДАННЫЕ С ПРОГРЕССОМ
                     current_data.update({
                         "artist": new_artist,
                         "title": new_title,
+                        "position": position,
+                        "duration": duration,
+                        "is_playing": is_playing,
                         "cover_version": current_data["cover_version"] + 1
                         if cover_updated else current_data["cover_version"]
                     })
 
-                    # Отправляем обновление
+                    # ОТПРАВЛЯЕМ ОБНОВЛЕНИЕ С ПРОГРЕССОМ
                     msg = {
                         "type": "update",
                         "data": {
                             "artist": new_artist,
                             "title": new_title,
+                            "position": position,
+                            "duration": duration,
+                            "is_playing": is_playing,
                             "cover_url": f"/cover?v={current_data['cover_version']}",
                             "config": current_config,
-                            "status": "active"  # Явно указываем статус
+                            "status": "active"
                         }
                     }
                     for ws in list(current_data['listeners']):
@@ -105,8 +125,7 @@ async def media_monitor():
                         except:
                             current_data['listeners'].remove(ws)
             else:
-                # Нет активной сессии, но не сбрасываем данные сразу
-                # Ждем несколько циклов перед сбросом
+                # Нет активной сессии
                 pass
 
         except Exception as e:
@@ -117,7 +136,7 @@ async def media_monitor():
 
 @routes.get('/')
 async def index(request):
-    return web.FileResponse(os.path.join(visualisation_dir, 'visualisation.html'))
+    return web.FileResponse(os.path.join(visualisation_dir, 'visualisation_var2.html'))
 
 
 @routes.get('/cover')
@@ -183,7 +202,7 @@ async def websocket_handler(request):
 
 app.add_routes([
     web.get('/', index),
-    web.get('/visualisation.html', index),
+    web.get('/visualisation_var2.html', index),
     web.get('/cover', cover),
     web.get('/ws', websocket_handler),
     web.post('/update_config', update_config)

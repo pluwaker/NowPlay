@@ -69,7 +69,7 @@ class SettingsPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             color_text_frame,
-            text="Цвет текста",
+            text="Цвет названия трека",
             font=ctk.CTkFont(size=14),
             text_color="#cccccc"
         ).pack(side="left")
@@ -84,6 +84,28 @@ class SettingsPage(ctk.CTkFrame):
             command=lambda: self.change_color("text_color")
         )
         self.text_color_btn.pack(side="right")
+
+        # Цвет имени исполнителя
+        color_artist_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        color_artist_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(
+            color_artist_frame,
+            text="Цвет имени исполнителя",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.artist_color_btn = ctk.CTkButton(
+            color_artist_frame,
+            text="",
+            width=40,
+            height=30,
+            fg_color=self.config_data.get("artist_color", "#b3b3b3"),
+            hover_color=self.config_data.get("artist_color", "#b3b3b3"),
+            command=lambda: self.change_color("artist_color")
+        )
+        self.artist_color_btn.pack(side="right")
 
         # Цвет волны
         color_wave_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
@@ -106,6 +128,50 @@ class SettingsPage(ctk.CTkFrame):
             command=lambda: self.change_color("wave_color")
         )
         self.wave_color_btn.pack(side="right")
+
+        # Градиент прогресс-бара - цвет 1
+        color_progress1_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        color_progress1_frame.pack(fill="x", padx=20, pady=(0, 5))
+
+        ctk.CTkLabel(
+            color_progress1_frame,
+            text="Градиент прогресс-бара (начало)",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.progress_color1_btn = ctk.CTkButton(
+            color_progress1_frame,
+            text="",
+            width=40,
+            height=30,
+            fg_color=self.config_data.get("progress_color1", "#1db954"),
+            hover_color=self.config_data.get("progress_color1", "#1db954"),
+            command=lambda: self.change_color("progress_color1")
+        )
+        self.progress_color1_btn.pack(side="right")
+
+        # Градиент прогресс-бара - цвет 2
+        color_progress2_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        color_progress2_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(
+            color_progress2_frame,
+            text="Градиент прогресс-бара (конец)",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.progress_color2_btn = ctk.CTkButton(
+            color_progress2_frame,
+            text="",
+            width=40,
+            height=30,
+            fg_color=self.config_data.get("progress_color2", "#1ed760"),
+            hover_color=self.config_data.get("progress_color2", "#1ed760"),
+            command=lambda: self.change_color("progress_color2")
+        )
+        self.progress_color2_btn.pack(side="right")
 
         # Волна (переключатель)
         wave_switch_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
@@ -161,7 +227,7 @@ class SettingsPage(ctk.CTkFrame):
 
         self.url_label = ctk.CTkLabel(
             url_content,
-            text="http://localhost:8080/vusialisation.html",
+            text="http://localhost:8080/visualisation.html",
             font=ctk.CTkFont(family="Consolas", size=12),
             text_color="#00ff80",
             justify="left",
@@ -203,7 +269,7 @@ class SettingsPage(ctk.CTkFrame):
 
     def change_color(self, color_type):
         """Изменяет цвет"""
-        current_color = self.config_data[color_type]
+        current_color = self.config_data.get(color_type, self.get_default_color(color_type))
         color_code = colorchooser.askcolor(
             title=f"Выберите {color_type}",
             initialcolor=current_color
@@ -215,8 +281,23 @@ class SettingsPage(ctk.CTkFrame):
                 self.main_color_btn.configure(fg_color=color_code, hover_color=color_code)
             elif color_type == "text_color":
                 self.text_color_btn.configure(fg_color=color_code, hover_color=color_code)
-            else:
+            elif color_type == "artist_color":
+                self.artist_color_btn.configure(fg_color=color_code, hover_color=color_code)
+            elif color_type == "wave_color":
                 self.wave_color_btn.configure(fg_color=color_code, hover_color=color_code)
+            elif color_type == "progress_color1":
+                self.progress_color1_btn.configure(fg_color=color_code, hover_color=color_code)
+            elif color_type == "progress_color2":
+                self.progress_color2_btn.configure(fg_color=color_code, hover_color=color_code)
+
+    def get_default_color(self, color_type):
+        """Возвращает цвет по умолчанию"""
+        defaults = {
+            "artist_color": "#b3b3b3",
+            "progress_color1": "#1db954",
+            "progress_color2": "#1ed760"
+        }
+        return defaults.get(color_type, "#ffffff")
 
     def toggle_wave(self):
         """Переключает визуализатор волны"""

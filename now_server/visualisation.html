@@ -9,6 +9,8 @@
             --bg-color: rgba(30, 30, 30, 1);
             --text-color: #ffffff;
             --wave-color: #1db954;
+            --progress-color: #1db954;
+            --progress-bg: #404040;
         }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -67,7 +69,6 @@
         .track-title.marquee {
             text-overflow: unset;
             display: inline-block;
-
             animation: marquee 15s linear infinite;
         }
         .artist-name {
@@ -122,6 +123,35 @@
         .text-length-indicator {
             display: none;
         }
+
+        /* ПОЛЗУНОК ПРОГРЕССА */
+        .progress-container {
+            margin: 15px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--progress-bg);
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+        }
+        .progress {
+            height: 100%;
+            background: var(--progress-color);
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+        .progress-time {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
         .visualizer {
             display: flex;
             justify-content: space-between;
@@ -158,6 +188,18 @@
                 <div class="artist-name" id="artist">Нет данных</div>
             </div>
         </div>
+
+        <!-- ПОЛЗУНОК ПРОГРЕССА -->
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <div class="progress-time">
+                <span id="currentTime">0:00</span>
+                <span id="duration">0:00</span>
+            </div>
+        </div>
+
         <div class="visualizer" id="visualizer"></div>
         <div class="status" id="status"></div>
     </div>
@@ -171,6 +213,12 @@
     const visualizer = document.getElementById('visualizer');
     const titleContainer = document.getElementById('title-container');
     const artistContainer = document.getElementById('artist-container');
+
+    // Элементы прогресса
+    const progressBar = document.getElementById('progressBar');
+    const progress = document.getElementById('progress');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
 
     // Создаём 12 полосок визуализатора
     for (let i = 0; i < 12; i++) {
@@ -187,35 +235,74 @@
     let animationFrame;
     let currentConfig = {};
 
+    // Переменные для прогресса
+    let currentPosition = 0;
+    let totalDuration = 0;
+    let isPlaying = false;
+    let progressInterval;
+
     // ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ДЛИНЫ ТЕКСТА
     function checkTextOverflow(element, container) {
-    // После смены текста иногда нужно чуть подождать ререндер — но лучше не полагаться на таймауты.
-    // Проверяем реальную ширину контента против видимого контейнера.
-    const isOverflowing = element.scrollWidth > container.clientWidth;
+        const isOverflowing = element.scrollWidth > container.clientWidth;
 
-    if (isOverflowing) {
-        // Включаем бегущую строку и градиенты
-        element.classList.add('marquee');
-        container.classList.add('marquee-active');
+        if (isOverflowing) {
+            element.classList.add('marquee');
+            container.classList.add('marquee-active');
+            element.style.transform = '';
+            element.style.paddingLeft = '100%';
+            element.style.animation = 'marquee 15s linear infinite';
+        } else {
+            element.classList.remove('marquee');
+            container.classList.remove('marquee-active');
+            element.style.animation = '';
+            element.style.paddingLeft = '';
+            element.style.transform = '';
+        }
 
-        // Убираем потенциальный остаточный transform и ставим корректный отступ старта
-        element.style.transform = '';
-        element.style.paddingLeft = '100%';
-
-        // Явно задаём анимацию (дублирует CSS-класс, но надёжно)
-        element.style.animation = 'marquee 15s linear infinite';
-    } else {
-        // Выключаем бегущую строку и градиенты и убираем все inline-стили, мешающие нормальному отображению
-        element.classList.remove('marquee');
-        container.classList.remove('marquee-active');
-
-        element.style.animation = '';
-        element.style.paddingLeft = '';
-        element.style.transform = '';
+        return isOverflowing;
     }
 
-    return isOverflowing;
-}
+    // ФУНКЦИЯ ОБНОВЛЕНИЯ ПРОГРЕССА
+    function updateProgress() {
+        if (totalDuration > 0) {
+            const progressPercent = (currentPosition / totalDuration) * 100;
+            progress.style.width = `${progressPercent}%`;
+
+            // Форматируем время
+            currentTimeEl.textContent = formatTime(currentPosition);
+            durationEl.textContent = formatTime(totalDuration);
+        } else {
+            progress.style.width = '0%';
+            currentTimeEl.textContent = '0:00';
+            durationEl.textContent = '0:00';
+        }
+    }
+
+    // ФУНКЦИЯ ФОРМАТИРОВАНИЯ ВРЕМЕНИ
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // ЗАПУСК/ОСТАНОВКА ОБНОВЛЕНИЯ ПРОГРЕССА
+    function startProgressUpdate() {
+        if (progressInterval) clearInterval(progressInterval);
+
+        progressInterval = setInterval(() => {
+            if (isPlaying && currentPosition < totalDuration) {
+                currentPosition += 1;
+                updateProgress();
+            }
+        }, 1000);
+    }
+
+    function stopProgressUpdate() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }
 
     // ФУНКЦИЯ ПРИМЕНЕНИЯ НАСТРОЕК
     function applyConfig(config) {
@@ -226,8 +313,9 @@
             document.documentElement.style.setProperty('--bg-color', config.main_color || 'rgba(30, 30, 30, 1)');
             document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
             document.documentElement.style.setProperty('--wave-color', config.wave_color || '#1db954');
+            document.documentElement.style.setProperty('--progress-color', config.progress_color || '#1db954');
+            document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
 
-            // Перепроверяем длину текста после применения настроек
             setTimeout(() => {
                 checkTextOverflow(title, titleContainer);
                 checkTextOverflow(artist, artistContainer);
@@ -279,8 +367,14 @@
             artist.textContent = "Запустите медиа-плеер";
             cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+UGxheWVyIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
             stopVisualizer();
+            stopProgressUpdate();
 
-            // Сбрасываем бегущие строки
+            // Сбрасываем прогресс
+            currentPosition = 0;
+            totalDuration = 0;
+            isPlaying = false;
+            updateProgress();
+
             title.classList.remove('marquee');
             artist.classList.remove('marquee');
             titleContainer.classList.remove('marquee-active');
@@ -294,6 +388,25 @@
         title.textContent = data.title || "Неизвестный трек";
         artist.textContent = data.artist || "Неизвестный исполнитель";
 
+        // ОБНОВЛЯЕМ ДАННЫЕ ПРОГРЕССА
+        if (data.position !== undefined) {
+            currentPosition = data.position;
+        }
+        if (data.duration !== undefined) {
+            totalDuration = data.duration;
+        }
+        if (data.is_playing !== undefined) {
+            isPlaying = data.is_playing;
+
+            if (isPlaying) {
+                startProgressUpdate();
+            } else {
+                stopProgressUpdate();
+            }
+        }
+
+        updateProgress();
+
         if (data.cover_url) {
             cover.src = data.cover_url + `&t=${Date.now()}`;
             cover.onerror = () => {
@@ -304,7 +417,6 @@
         player.style.opacity = 1;
         setStatus("");
 
-        // Проверяем длину текста после обновления
         setTimeout(() => {
             checkTextOverflow(title, titleContainer);
             checkTextOverflow(artist, artistContainer);
@@ -316,21 +428,14 @@
     }
 
     function resetAnimation(element, container) {
-    // Убираем класс и связанные с ним градиенты у контейнера
-    element.classList.remove('marquee');
-    if (container) container.classList.remove('marquee-active');
-
-    // Сбрасываем все inline-стили, которые могли бы вызвать эффект скролла
-    element.style.animation = 'none';
-    element.style.paddingLeft = '';
-    element.style.transform = '';
-
-    // Форсируем reflow, чтобы анимация точно сбросилась
-    void element.offsetWidth;
-
-    // Очищаем окончательно (не запускаем новую анимацию здесь)
-    element.style.animation = '';
-}
+        element.classList.remove('marquee');
+        if (container) container.classList.remove('marquee-active');
+        element.style.animation = 'none';
+        element.style.paddingLeft = '';
+        element.style.transform = '';
+        void element.offsetWidth;
+        element.style.animation = '';
+    }
 
     // Подключение к WebSocket
     function connect() {
@@ -364,12 +469,14 @@
         ws.onclose = () => {
             setStatus("Соединение потеряно");
             stopVisualizer();
+            stopProgressUpdate();
             reconnect();
         };
 
         ws.onerror = (err) => {
             console.error("WebSocket error:", err);
             stopVisualizer();
+            stopProgressUpdate();
             reconnect();
         };
     }
@@ -384,10 +491,27 @@
     document.addEventListener('DOMContentLoaded', () => {
         connect();
 
-        // Проверяем ресайз окна
         window.addEventListener('resize', () => {
             checkTextOverflow(title, titleContainer);
             checkTextOverflow(artist, artistContainer);
+        });
+
+        // Обработчик клика на прогресс-бар
+        progressBar.addEventListener('click', (e) => {
+            if (totalDuration > 0) {
+                const rect = progressBar.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                currentPosition = percent * totalDuration;
+                updateProgress();
+
+                // Здесь можно отправить команду на сервер для перемотки
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: "seek",
+                        position: currentPosition
+                    }));
+                }
+            }
         });
     });
 
@@ -395,9 +519,13 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stopVisualizer();
+            stopProgressUpdate();
         } else {
             if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
                 animateVisualizer();
+            }
+            if (isPlaying) {
+                startProgressUpdate();
             }
         }
     });

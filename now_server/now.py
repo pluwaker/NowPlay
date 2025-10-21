@@ -136,7 +136,7 @@ async def media_monitor():
 
 @routes.get('/')
 async def index(request):
-    return web.FileResponse(os.path.join(visualisation_dir, 'visualisation_var2.html'))
+    return web.FileResponse(os.path.join(visualisation_dir, 'visualisation_var3.html'))
 
 
 @routes.get('/cover')
@@ -202,7 +202,7 @@ async def websocket_handler(request):
 
 app.add_routes([
     web.get('/', index),
-    web.get('/visualisation_var2.html', index),
+    web.get('/visualisation_var3.html', index),
     web.get('/cover', cover),
     web.get('/ws', websocket_handler),
     web.post('/update_config', update_config)

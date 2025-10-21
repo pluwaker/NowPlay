@@ -84,7 +84,7 @@ class NowPlayApp(ctk.CTk):
         self.clear_content()
 
         if "start" not in self.pages:
-            from pages.start_page import StartPage
+            from ui.pages.start_page import StartPage
             self.pages["start"] = StartPage(self.content, self)
 
         self.current_page = self.pages["start"]
@@ -97,7 +97,7 @@ class NowPlayApp(ctk.CTk):
         self.clear_content()
 
         if "settings" not in self.pages:
-            from pages.settings_page import SettingsPage
+            from ui.pages.settings_page import SettingsPage
             self.pages["settings"] = SettingsPage(self.content, self)
 
         self.current_page = self.pages["settings"]
@@ -110,7 +110,7 @@ class NowPlayApp(ctk.CTk):
         self.clear_content()
 
         if "info" not in self.pages:
-            from pages.info_page import InfoPage
+            from ui.pages.info_page import InfoPage
             self.pages["info"] = InfoPage(self.content, self)
 
         self.current_page = self.pages["info"]
@@ -138,7 +138,7 @@ class NowPlayApp(ctk.CTk):
         """Запускает сервер (вызывается из StartPage)"""
         try:
             self.port = find_free_port()
-            self.obs_url = f"http://localhost:{self.port}/visualisation_var2.html"
+            self.obs_url = f"http://localhost:{self.port}/visualisation_var3.html"
 
             self.server_process = multiprocessing.Process(
                 target=start_server_process,

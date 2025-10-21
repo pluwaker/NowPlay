@@ -5,12 +5,33 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/nowplay.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/nowplay.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" afterPath="$PROJECT_DIR$/build.spec" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/Analysis-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/EXE-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PKG-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.pyz" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.pyz" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/base_library.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/warn-build.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/warn-build.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/xref-build.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/xref-build.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/Analysis-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/EXE-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/PKG-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/PYZ-00.pyz" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/PYZ-00.pyz" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/PYZ-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/PYZ-00.toc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/base_library.zip" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/main.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/main.pkg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/warn-main.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/warn-main.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/main/xref-main.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/xref-main.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/NowPlayServer.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.spec" beforeDir="false" afterPath="$PROJECT_DIR$/main.spec" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var2.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
@@ -149,7 +170,9 @@
       <workItem from="1760967066121" duration="1177000" />
       <workItem from="1760983376632" duration="75000" />
       <workItem from="1761052124971" duration="2761000" />
-      <workItem from="1761055897359" duration="3695000" />
+      <workItem from="1761055897359" duration="4825000" />
+      <workItem from="1761063886044" duration="3270000" />
+      <workItem from="1761078936682" duration="4020000" />
     </task>
     <servers />
   </component>
@@ -157,6 +180,6 @@
     <option name="version" value="3" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/NowPlay$main.coverage" NAME="main Coverage Results" MODIFIED="1761056691366" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/NowPlay$main.coverage" NAME="main Coverage Results" MODIFIED="1761081024520" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

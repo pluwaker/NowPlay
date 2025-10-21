@@ -1,28 +1,25 @@
-# main.py
 import multiprocessing
 import sys
 import os
 
-# Добавляем пути для импортов
+# вычисляем путь к текущему файлу
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
-sys.path.insert(0, os.path.join(current_dir, 'ui'))
 
-try:
-    from ui.app import NowPlayApp
-except ImportError as e:
-    print(f"Import error: {e}")
-    print("Current sys.path:", sys.path)
-    # Пробуем прямой импорт
-    try:
-        from app import NowPlayApp
-    except ImportError:
-        raise
+# добавляем текущую папку в sys.path
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# теперь импортируем корректно
+from ui.app import NowPlayApp
+
 
 def main():
     multiprocessing.freeze_support()
+    print("🚀 Starting NowPlayApp...")  # Добавь эту строку
     app = NowPlayApp()
+    print("✅ NowPlayApp started successfully")  # И эту
     app.mainloop()
+
 
 if __name__ == "__main__":
     main()

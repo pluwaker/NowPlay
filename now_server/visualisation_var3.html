@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Now Playing v3</title>
+    <style>
+        :root {
+            --bg-color: rgba(30, 30, 30, 0.95);
+            --text-color: #ffffff;
+            --accent-color: #1db954;
+            --secondary-color: #b3b3b3;
+            --progress-color1: #1db954;
+            --progress-color2: #1ed760;
+            --progress-bg: #404040;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: transparent !important; /* ДЛЯ OBS - ПОЛНАЯ ПРОЗРАЧНОСТЬ */
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* ТЕМНЫЙ ФОН ТОЛЬКО ДЛЯ ПРЕДПРОСМОТРА В БРАУЗЕРЕ */
+        @media screen and (min-width: 1024px) {
+            body {
+                background: rgba(10, 10, 10, 0.9) !important;
+            }
+        }
+
+        .player-container {
+            width: 100%;
+            max-width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px; /* Расстояние между подложками */
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+        }
+
+        .player-container.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ПОДЛОЖКА 1 - COVER */
+        .cover-section {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            background: none; /* важно — убираем полупрозрачный фон! */
+            isolation: isolate; /* заставляет браузер отрисовывать без смешивания */
+        }
+
+        .album-cover {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            display: block;
+            border-radius: inherit;
+            background-color: #000; /* заполняет альфа-канал, убирает белый fringe */
+            -webkit-mask-image: radial-gradient(circle, #000 99.5%, transparent 100%);
+            -webkit-mask-repeat: no-repeat;
+            -webkit-mask-size: 100% 100%;
+            -webkit-mask-composite: destination-in;
+            mask-composite: intersect;
+        }
+
+
+
+
+        /* ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ */
+        .track-section {
+            background: var(--bg-color);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .track-info {
+            text-align: center;
+        }
+
+        .track-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: var(--text-color);
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .artist-name {
+            font-size: 14px;
+            color: var(--secondary-color);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .visualizer-section {
+            width: 100%;
+        }
+
+        .visualizer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 30px;
+            gap: 2px;
+        }
+
+        .visualizer-bar {
+            background: linear-gradient(to top, var(--accent-color), var(--wave-color));
+            width: 4px;
+            border-radius: 2px 2px 0 0;
+            transition: all 0.15s ease-out;
+            flex: 1;
+        }
+
+        /* ПОДЛОЖКА 3 - ПРОГРЕСС БАР */
+        .progress-section {
+            background: var(--bg-color);
+            backdrop-filter: blur(20px);
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 5px;
+            background: var(--progress-bg);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--progress-color1), var(--progress-color2));
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.2s ease;
+            position: relative;
+        }
+
+        .progress::after {
+            content: '';
+            position: absolute;
+            right: -3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 10px;
+            height: 10px;
+            background: var(--text-color);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .progress-bar:hover .progress::after {
+            opacity: 1;
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--secondary-color);
+            font-weight: 500;
+        }
+
+        .status-section {
+            text-align: center;
+            height: 18px;
+            display: none;
+        }
+
+        .status {
+            font-size: 10px;
+            color: var(--secondary-color);
+            opacity: 0.7;
+            font-weight: 500;
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            .player-container {
+                max-width: 300px;
+            }
+
+            .track-section, .progress-section {
+                padding: 15px;
+            }
+
+            .track-title {
+                font-size: 18px;
+            }
+
+            .artist-name {
+                font-size: 13px;
+            }
+        }
+
+        /* Состояние паузы */
+        .paused .visualizer-bar {
+            opacity: 0.3;
+        }
+
+        .paused .album-cover {
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container" id="player">
+        <!-- ПОДЛОЖКА 1 - COVER -->
+        <div class="cover-section">
+            <img class="album-cover" id="cover" src="" alt="Album Cover">
+        </div>
+
+        <!-- ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ -->
+        <div class="track-section">
+            <div class="track-info">
+                <div class="track-title" id="title">Не воспроизводится</div>
+                <div class="artist-name" id="artist">Запустите медиа-плеер</div>
+            </div>
+
+            <div class="visualizer-section">
+                <div class="visualizer" id="visualizer"></div>
+            </div>
+        </div>
+
+        <!-- ПОДЛОЖКА 3 - ПРОГРЕСС БАР -->
+        <div class="progress-section">
+            <div class="progress-bar" id="progressBar">
+                <div class="progress" id="progress"></div>
+            </div>
+            <div class="time-display">
+                <span id="currentTime">0:00</span>
+                <span id="duration">0:00</span>
+            </div>
+        </div>
+
+        <!-- СТАТУС (скрыт по умолчанию) -->
+        <div class="status-section" id="statusSection">
+            <div class="status" id="status"></div>
+        </div>
+    </div>
+
+    <script>
+    // Элементы DOM
+    const player = document.getElementById('player');
+    const cover = document.getElementById('cover');
+    const title = document.getElementById('title');
+    const artist = document.getElementById('artist');
+    const progressBar = document.getElementById('progressBar');
+    const progress = document.getElementById('progress');
+    const currentTimeEl = document.getElementById('currentTime');
+    const durationEl = document.getElementById('duration');
+    const visualizer = document.getElementById('visualizer');
+    const statusText = document.getElementById('status');
+    const statusSection = document.getElementById('statusSection');
+
+    // Переменные состояния
+    let ws;
+    let reconnectTimer;
+    const RECONNECT_DELAY = 3000;
+    let animationFrame;
+    let currentConfig = {};
+    let currentPosition = 0;
+    let totalDuration = 0;
+    let isPlaying = false;
+    let progressInterval;
+
+    // Создание визуализатора
+    function createVisualizer() {
+        visualizer.innerHTML = '';
+        for (let i = 0; i < 14; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'visualizer-bar';
+            bar.style.height = '3px';
+            visualizer.appendChild(bar);
+        }
+    }
+
+    // Форматирование времени
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Обновление прогресса
+    function updateProgress() {
+        if (totalDuration > 0) {
+            const progressPercent = (currentPosition / totalDuration) * 100;
+            progress.style.width = `${progressPercent}%`;
+            currentTimeEl.textContent = formatTime(currentPosition);
+            durationEl.textContent = formatTime(totalDuration);
+        } else {
+            progress.style.width = '0%';
+            currentTimeEl.textContent = '0:00';
+            durationEl.textContent = '0:00';
+        }
+    }
+
+    // Обновление прогресса в реальном времени
+    function startProgressUpdate() {
+        if (progressInterval) clearInterval(progressInterval);
+
+        progressInterval = setInterval(() => {
+            if (isPlaying && currentPosition < totalDuration) {
+                currentPosition += 1;
+                updateProgress();
+            }
+        }, 1000);
+    }
+
+    function stopProgressUpdate() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }
+
+    // Анимация визуализатора
+    function animateVisualizer() {
+        if (!currentConfig.wave_enabled) {
+            stopVisualizer();
+            return;
+        }
+
+        const bars = document.querySelectorAll('.visualizer-bar');
+        const time = Date.now() * 0.002;
+
+        bars.forEach((bar, index) => {
+            const offset = index * 0.25;
+            const height = 3 + Math.abs(Math.sin(time + offset) * 27);
+            bar.style.height = `${height}px`;
+
+            const opacity = 0.4 + (height / 30) * 0.6;
+            bar.style.opacity = opacity;
+        });
+
+        animationFrame = requestAnimationFrame(animateVisualizer);
+    }
+
+    function stopVisualizer() {
+        cancelAnimationFrame(animationFrame);
+        const bars = document.querySelectorAll('.visualizer-bar');
+        bars.forEach(bar => {
+            bar.style.height = '3px';
+            bar.style.opacity = '0.3';
+        });
+    }
+
+    // Обновление статуса подключения
+    function setStatus(text) {
+        if (text && text !== "" && text !== "Воспроизведение" && text !== "Подключено") {
+            statusSection.style.display = 'block';
+            statusText.textContent = text;
+        } else {
+            statusSection.style.display = 'none';
+            statusText.textContent = "";
+        }
+    }
+
+    // Применение конфигурации
+    function applyConfig(config) {
+        if (config) {
+            currentConfig = config;
+
+            // Применяем цвета
+            document.documentElement.style.setProperty('--bg-color', config.main_color || config.background_color || 'rgba(30, 30, 30, 0.95)');
+            document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
+            document.documentElement.style.setProperty('--accent-color', config.accent_color || config.wave_color || '#1db954');
+            document.documentElement.style.setProperty('--secondary-color', config.secondary_color || '#b3b3b3');
+            document.documentElement.style.setProperty('--progress-color1', config.progress_color1 || config.progress_color || config.accent_color || config.wave_color || '#1db954');
+            document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
+            document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
+            document.documentElement.style.setProperty('--wave-color', config.wave_color || config.accent_color || '#1db954');
+
+            // Применяем цвет артиста
+            const artistElement = document.getElementById('artist');
+            if (config.artist_color) {
+                artistElement.style.color = config.artist_color;
+            } else if (config.secondary_color) {
+                artistElement.style.color = config.secondary_color;
+            } else {
+                artistElement.style.color = '';
+            }
+
+            // Управление визуализатором
+            if (config.wave_enabled) {
+                animateVisualizer();
+            } else {
+                stopVisualizer();
+            }
+        }
+    }
+
+    // Обновление данных плеера
+    function updatePlayer(data) {
+        if (data.status === 'inactive') {
+            title.textContent = "Не воспроизводится";
+            artist.textContent = "Запустите медиа-плеер";
+            cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWUxZTFlIi8+PGNpcmNsZSBjeD0iMTUwIiBjeT0iMTMwIiByPSI0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNDQ0IiBzdHJva2Utd2lkdGg9IjMiLz48cG9seWdvbiBwb2ludHM9IjEyMCwxMDAgMTIwLDE2MCAxODAsMTMwIiBmaWxsPSIjNDQ0Ii8+PHRleHQgeD0iMTUwIiB5PSIyMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+            stopVisualizer();
+            stopProgressUpdate();
+
+            currentPosition = 0;
+            totalDuration = 0;
+            isPlaying = false;
+            updateProgress();
+
+            player.classList.add('paused');
+            setStatus("Плеер не обнаружен");
+            return;
+        }
+
+        // Обновляем данные
+        title.textContent = data.title || "Неизвестный трек";
+        artist.textContent = data.artist || "Неизвестный исполнитель";
+
+        // Обновляем прогресс
+        if (data.position !== undefined) currentPosition = data.position;
+        if (data.duration !== undefined) totalDuration = data.duration;
+        if (data.is_playing !== undefined) {
+            isPlaying = data.is_playing;
+            player.classList.toggle('paused', !isPlaying);
+
+            if (isPlaying) {
+                startProgressUpdate();
+            } else {
+                stopProgressUpdate();
+            }
+        }
+
+        updateProgress();
+
+        // Обновляем обложку
+        if (data.cover_url) {
+            cover.src = data.cover_url + `&t=${Date.now()}`;
+            cover.onerror = () => {
+                cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMWUxZTFlIi8+PGNpcmNsZSBjeD0iMTUwIiBjeT0iMTMwIiByPSI0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNDQ0IiBzdHJva2Utd2lkdGg9IjMiLz48cG9seWdvbiBwb2ludHM9IjEyMCwxMDAgMTIwLDE2MCAxODAsMTMwIiBmaWxsPSIjNDQ0Ii8+PHRleHQgeD0iMTUwIiB5PSIyMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY2NiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+            };
+        }
+
+        // Показываем плеер
+        player.style.opacity = 1;
+        player.classList.add('loaded');
+        setStatus("");
+
+        // Запускаем визуализатор если нужно
+        if (currentConfig.wave_enabled !== false) {
+            animateVisualizer();
+        }
+    }
+
+    // WebSocket подключение
+    function connect() {
+        setStatus("Подключение...");
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => {
+            setStatus("");
+        };
+
+        ws.onmessage = (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                console.log('Получены данные:', data);
+
+                if (data.type === 'init' || data.type === 'update') {
+                    updatePlayer(data.data);
+                    if (data.data.config) {
+                        applyConfig(data.data.config);
+                    }
+                } else if (data.type === 'config_update') {
+                    applyConfig(data.config);
+                }
+            } catch (err) {
+                console.error("Ошибка обработки сообщения:", err);
+            }
+        };
+
+        ws.onclose = () => {
+            setStatus("Переподключение...");
+            stopVisualizer();
+            stopProgressUpdate();
+            reconnect();
+        };
+
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            stopVisualizer();
+            stopProgressUpdate();
+        };
+    }
+
+    function reconnect() {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(connect, RECONNECT_DELAY);
+    }
+
+    // Обработчик клика на прогресс-бар
+    progressBar.addEventListener('click', (e) => {
+        if (totalDuration > 0) {
+            const rect = progressBar.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            currentPosition = percent * totalDuration;
+            updateProgress();
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "seek",
+                    position: currentPosition
+                }));
+            }
+        }
+    });
+
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', () => {
+        createVisualizer();
+        connect();
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopVisualizer();
+                stopProgressUpdate();
+            } else {
+                if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
+                    animateVisualizer();
+                }
+                if (isPlaying) {
+                    startProgressUpdate();
+                }
+            }
+        });
+    });
+    </script>
+</body>
+</html>

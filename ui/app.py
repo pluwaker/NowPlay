@@ -138,7 +138,7 @@ class NowPlayApp(ctk.CTk):
         """Запускает сервер (вызывается из StartPage)"""
         try:
             self.port = find_free_port()
-            self.obs_url = f"http://localhost:{self.port}/visualisation_var3.html"
+            self.obs_url = f"http://localhost:{self.port}/index.html"
 
             self.server_process = multiprocessing.Process(
                 target=start_server_process,

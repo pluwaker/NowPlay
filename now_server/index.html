@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Now Playing - Template Selector</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #1e1e1e;
+            color: white;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #1db954;
+        }
+        .template-card {
+            background: #2b2b2b;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .template-card:hover {
+            border-color: #1db954;
+            transform: translateY(-2px);
+        }
+        .template-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .template-desc {
+            font-size: 14px;
+            color: #b3b3b3;
+        }
+        .current-template {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 14px;
+            color: #1db954;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Выберите шаблон виджета</h1>
+
+        <div class="template-card" onclick="loadTemplate('visualisation.html')">
+            <div class="template-name">🎨 Классический</div>
+            <div class="template-desc">Единая подложка, компактный дизайн</div>
+        </div>
+
+        <div class="template-card" onclick="loadTemplate('visualisation_var2.html')">
+            <div class="template-name">✨ Модерн</div>
+            <div class="template-desc">Современный дизайн с градиентами</div>
+        </div>
+
+        <div class="template-card" onclick="loadTemplate('visualisation_var3.html')">
+            <div class="template-name">🎯 Модульный</div>
+            <div class="template-desc">3 отдельные подложки</div>
+        </div>
+
+        <div class="current-template" id="currentTemplate">
+            Выберите шаблон
+        </div>
+    </div>
+
+    <script>
+        // Получаем выбранный шаблон из URL или localStorage
+        const urlParams = new URLSearchParams(window.location.search);
+        const templateFromUrl = urlParams.get('template');
+        const savedTemplate = localStorage.getItem('selectedTemplate');
+
+        // Определяем какой шаблон загружать
+        let targetTemplate = templateFromUrl || savedTemplate || 'visualisation.html';
+
+        // Автозагрузка если указан параметр auto
+        if (urlParams.get('auto') === '1') {
+            window.location.href = targetTemplate + window.location.search;
+        }
+
+        function loadTemplate(templateName) {
+            // Сохраняем выбор
+            localStorage.setItem('selectedTemplate', templateName);
+
+            // Обновляем статус
+            document.getElementById('currentTemplate').textContent =
+                `Предыдущий шаблон: ${getTemplateDisplayName(templateName)}`;
+
+            // Переходим к шаблону
+            window.location.href = templateName;
+        }
+
+        function getTemplateDisplayName(filename) {
+            const names = {
+                'visualisation.html': 'Классический',
+                'visualisation_var2.html': 'Модерн',
+                'visualisation_var3.html': 'Модульный'
+            };
+            return names[filename] || filename;
+        }
+
+        // Показываем текущий выбранный шаблон
+        if (savedTemplate) {
+            document.getElementById('currentTemplate').textContent =
+                `Предыдущий шаблон: ${getTemplateDisplayName(savedTemplate)}`;
+        }
+    </script>
+</body>
+</html>

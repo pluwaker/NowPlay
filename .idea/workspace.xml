@@ -5,33 +5,25 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/now_server/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/nowplay.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/nowplay.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" afterPath="$PROJECT_DIR$/build.spec" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/Analysis-00.toc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/EXE-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/NowPlayServer.pkg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/build/NowPlay.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/NowPlay.pkg" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PKG-00.toc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.pyz" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.pyz" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/PYZ-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/PYZ-00.toc" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/base_library.zip" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/warn-build.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/warn-build.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/build/xref-build.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/build/xref-build.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/Analysis-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/Analysis-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/EXE-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/EXE-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/PKG-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/PKG-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/PYZ-00.pyz" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/PYZ-00.pyz" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/PYZ-00.toc" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/PYZ-00.toc" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/base_library.zip" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/base_library.zip" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/main.pkg" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/main.pkg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/warn-main.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/warn-main.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/main/xref-main.html" beforeDir="false" afterPath="$PROJECT_DIR$/build/main/xref-main.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dist/NowPlayServer.exe" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dist/NowPlay.exe" beforeDir="false" afterPath="$PROJECT_DIR$/dist/NowPlay.exe" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.spec" beforeDir="false" afterPath="$PROJECT_DIR$/main.spec" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation_var2.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
@@ -61,7 +53,7 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/pluwaker/NowPlay.git&quot;,
-    &quot;accountId&quot;: &quot;3e3735e5-0224-4b4e-9a78-3482f0d6f1f9&quot;
+    &quot;accountId&quot;: &quot;e8424930-457a-4348-8b3a-d96e44487614&quot;
   }
 }</component>
   <component name="ProjectColorInfo">{
@@ -154,8 +146,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-76f8388c3a79-JavaScript-PY-243.24978.54" />
-        <option value="bundled-python-sdk-91e3b7efe1d4-466328ff949b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-243.24978.54" />
+        <option value="bundled-python-sdk-9f8e2b94138c-36ea0e71a18c-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26094.141" />
       </set>
     </attachedChunks>
   </component>

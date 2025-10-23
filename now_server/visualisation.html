@@ -9,6 +9,7 @@
             --bg-color: rgba(30, 30, 30, 1);
             --text-color: #ffffff;
             --wave-color: #1db954;
+            --accent-color: #1db954;
             --progress-color: #1db954;
             --progress-bg: #404040;
         }
@@ -23,6 +24,13 @@
             align-items: center;
             min-height: 100vh;
         }
+
+        @media screen and (min-width: 1024px) {
+            body {
+                background: rgba(10, 10, 10, 0.9) !important;
+            }
+        }
+
         .player-container {
             background: var(--bg-color);
             backdrop-filter: blur(10px);
@@ -156,16 +164,19 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            height: 30px;
+            height: 40px;
             margin: 15px 0;
             gap: 3px;
         }
+
         .visualizer-bar {
-            background: var(--wave-color);
-            width: 4px;
-            border-radius: 2px;
-            transition: height 0.2s ease-out;
+            background: linear-gradient(to top, var(--accent-color), var(--wave-color));
+            width: 5px;
+            border-radius: 3px 3px 0 0;
+            transition: all 0.15s ease-out;
+            flex: 1;
         }
+
         .status {
             font-size: 11px;
             color: var(--text-color);
@@ -178,7 +189,7 @@
 <body>
     <div class="player-container" id="player">
         <div class="cover-container">
-            <img class="album-cover" id="cover" src="" alt="Album Cover">
+            <img class="album-cover" id="cover" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
         </div>
         <div class="track-info">
             <div class="marquee-container" id="title-container">
@@ -220,12 +231,16 @@
     const currentTimeEl = document.getElementById('currentTime');
     const durationEl = document.getElementById('duration');
 
-    // Создаём 12 полосок визуализатора
-    for (let i = 0; i < 12; i++) {
-        const bar = document.createElement('div');
-        bar.className = 'visualizer-bar';
-        bar.style.height = '3px';
-        visualizer.appendChild(bar);
+    // Создаём 14 полосок визуализатора
+    function createVisualizer() {
+        visualizer.innerHTML = '';
+        for (let i = 0; i < 14; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'visualizer-bar';
+            bar.dataset.phase = (Math.random() * Math.PI * 2).toFixed(2);
+            bar.style.height = '3px';
+            visualizer.appendChild(bar);
+        }
     }
     const bars = document.querySelectorAll('.visualizer-bar');
 
@@ -336,21 +351,39 @@
             return;
         }
 
+        const bars = document.querySelectorAll('.visualizer-bar');
+        const time = performance.now() * 0.005; // медленнее и стабильнее, чем Date.now()
+
         bars.forEach((bar, index) => {
-            const time = Date.now() * 0.002;
             const offset = index * 0.3;
-            const height = 2 + Math.abs(Math.sin(time + offset) * 28);
-            bar.style.height = `${height}px`;
-            bar.style.opacity = 0.3 + (height / 30) * 0.7;
+            const baseHeight = 3;
+            const maxHeight = 45;
+
+            // Медленнее и мягче "дышит" — с фазовым смещением
+            const phase = parseFloat(bar.dataset.phase);
+            const wave = Math.sin(time + offset + phase) * Math.cos(time * 0.7 + phase);
+            const targetHeight = baseHeight + Math.abs(wave) * (maxHeight - baseHeight);
+
+            // Интерполяция с плавным откликом (в духе inertia)
+            const currentHeight = parseFloat(bar.style.height) || baseHeight;
+            const newHeight = currentHeight + (targetHeight - currentHeight) * 0.06; // меньше шаг = мягче
+
+            // Применяем сглаживание по прозрачности
+            const opacity = 0.25 + (newHeight / maxHeight) * 0.75;
+
+            bar.style.height = `${newHeight.toFixed(1)}px`;
+            bar.style.opacity = opacity.toFixed(2);
         });
+
         animationFrame = requestAnimationFrame(animateVisualizer);
     }
 
     // Остановка анимации
     function stopVisualizer() {
         cancelAnimationFrame(animationFrame);
+        const bars = document.querySelectorAll('.visualizer-bar');
         bars.forEach(bar => {
-            bar.style.height = '2px';
+            bar.style.height = '3px';
             bar.style.opacity = '0.3';
         });
     }
@@ -437,6 +470,33 @@
         element.style.animation = '';
     }
 
+    function goToIndex() {
+        const player = document.getElementById('player');
+        player.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        player.style.opacity = '0';
+        player.style.transform = 'scale(0.95)';
+
+        setTimeout(() => {
+            window.location.href = '/index.html';
+        }, 300);
+    }
+
+    // Улучшенная анимация появления
+    document.addEventListener('DOMContentLoaded', function() {
+        const player = document.getElementById('player');
+
+        // Начальное состояние
+        player.style.opacity = '0';
+        player.style.transform = 'scale(1.05)';
+
+        // Анимация через небольшой таймаут для плавности
+        setTimeout(() => {
+            player.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            player.style.opacity = '1';
+            player.style.transform = 'scale(1)';
+        }, 50);
+    });
+
     // Подключение к WebSocket
     function connect() {
         setStatus("Подключение...");
@@ -489,6 +549,7 @@
 
     // Запуск при загрузке
     document.addEventListener('DOMContentLoaded', () => {
+        createVisualizer();
         connect();
 
         window.addEventListener('resize', () => {

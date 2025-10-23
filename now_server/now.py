@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 import sys
 
+
+
 # Добавляем путь для импорта config_manager
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config_manager import config_manager
@@ -136,7 +138,16 @@ async def media_monitor():
 
 @routes.get('/')
 async def index(request):
-    return web.FileResponse(os.path.join(visualisation_dir, 'visualisation_var3.html'))
+    return web.FileResponse(os.path.join(visualisation_dir, 'index.html'))
+
+@routes.get('/template/{name}')
+async def template_handler(request):
+    template_name = request.match_info['name']
+    template_path = os.path.join(visualisation_dir, template_name)
+    if os.path.exists(template_path):
+        return web.FileResponse(template_path)
+    else:
+        return web.Response(status=404, text="Template not found")
 
 
 @routes.get('/cover')
@@ -176,6 +187,14 @@ async def update_config(request):
         return web.json_response({"status": "error", "message": str(e)})
 
 
+@routes.get('/{filename}.html')
+async def serve_html(request):
+    filename = request.match_info['filename']
+    file_path = os.path.join(visualisation_dir, f"{filename}.html")
+    if os.path.exists(file_path):
+        return web.FileResponse(file_path)
+    return web.Response(status=404, text="Template not found")
+
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -202,10 +221,11 @@ async def websocket_handler(request):
 
 app.add_routes([
     web.get('/', index),
-    web.get('/visualisation_var3.html', index),
+    web.get('/index.html', index),
     web.get('/cover', cover),
     web.get('/ws', websocket_handler),
-    web.post('/update_config', update_config)
+    web.post('/update_config', update_config),
+    web.get('/{filename}.html', serve_html),
 ])
 
 

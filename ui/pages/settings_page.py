@@ -227,7 +227,7 @@ class SettingsPage(ctk.CTkFrame):
 
         self.url_label = ctk.CTkLabel(
             url_content,
-            text="http://localhost:8080/visualisation_var3.html",
+            text="http://localhost:8080/index.html",
             font=ctk.CTkFont(family="Consolas", size=12),
             text_color="#00ff80",
             justify="left",

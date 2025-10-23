@@ -32,6 +32,11 @@
             align-items: center;
             padding: 20px;
         }
+        @media screen and (min-width: 1024px) {
+            body {
+                background: rgba(10, 10, 10, 0.9) !important;
+            }
+        }
 
         .player-container {
             background: var(--bg-color);
@@ -46,6 +51,7 @@
             transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
             opacity: 0;
             transform: translateY(20px);
+            transition: all 0.5 ease;
         }
 
         .player-container.loaded {
@@ -79,7 +85,7 @@
         }
 
         .track-title {
-            font-size: 24px;
+            font-size: 32px;
             font-weight: 700;
             margin-bottom: 8px;
             color: var(--text-color);
@@ -87,7 +93,7 @@
         }
 
         .artist-name {
-            font-size: 16px;
+            font-size: 24px;
             color: var(--secondary-color);
             font-weight: 500;
         }
@@ -235,7 +241,7 @@
 <body>
     <div class="player-container" id="player">
         <div class="cover-section">
-            <img class="album-cover" id="cover" src="" alt="Album Cover">
+            <img class="album-cover" id="cover" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
         </div>
 
         <div class="track-info">
@@ -290,13 +296,15 @@
     // Создание визуализатора
     function createVisualizer() {
         visualizer.innerHTML = '';
-        for (let i = 0; i < 16; i++) {
+        for (let i = 0; i < 14; i++) {
             const bar = document.createElement('div');
             bar.className = 'visualizer-bar';
+            bar.dataset.phase = (Math.random() * Math.PI * 2).toFixed(2); // 🟢 случайная фаза
             bar.style.height = '3px';
             visualizer.appendChild(bar);
         }
     }
+
 
     // Форматирование времени
     function formatTime(seconds) {
@@ -346,16 +354,27 @@
         }
 
         const bars = document.querySelectorAll('.visualizer-bar');
-        const time = Date.now() * 0.002;
+        const time = performance.now() * 0.005; // медленнее и стабильнее, чем Date.now()
 
         bars.forEach((bar, index) => {
-            const offset = index * 0.25;
-            const height = 3 + Math.abs(Math.sin(time + offset) * 37);
-            bar.style.height = `${height}px`;
+            const offset = index * 0.3;
+            const baseHeight = 3;
+            const maxHeight = 45;
 
-            // Динамическая прозрачность для глубины
-            const opacity = 0.4 + (height / 40) * 0.6;
-            bar.style.opacity = opacity;
+            // Медленнее и мягче "дышит" — с фазовым смещением
+            const phase = parseFloat(bar.dataset.phase);
+            const wave = Math.sin(time + offset + phase) * Math.cos(time * 0.7 + phase);
+            const targetHeight = baseHeight + Math.abs(wave) * (maxHeight - baseHeight);
+
+            // Интерполяция с плавным откликом (в духе inertia)
+            const currentHeight = parseFloat(bar.style.height) || baseHeight;
+            const newHeight = currentHeight + (targetHeight - currentHeight) * 0.06; // меньше шаг = мягче
+
+            // Применяем сглаживание по прозрачности
+            const opacity = 0.25 + (newHeight / maxHeight) * 0.75;
+
+            bar.style.height = `${newHeight.toFixed(1)}px`;
+            bar.style.opacity = opacity.toFixed(2);
         });
 
         animationFrame = requestAnimationFrame(animateVisualizer);
@@ -481,6 +500,35 @@
             animateVisualizer();
         }
     }
+
+    function goToIndex() {
+        const player = document.getElementById('player');
+        player.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        player.style.opacity = '0';
+        player.style.transform = 'scale(0.95)';
+
+        setTimeout(() => {
+            window.location.href = '/index.html';
+        }, 300);
+    }
+
+    // Улучшенная анимация появления
+    document.addEventListener('DOMContentLoaded', function() {
+        const player = document.getElementById('player');
+
+        // Начальное состояние
+        player.style.opacity = '0';
+        player.style.transform = 'scale(1.05)';
+
+        // Анимация через небольшой таймаут для плавности
+        setTimeout(() => {
+            player.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            player.style.opacity = '1';
+            player.style.transform = 'scale(1)';
+        }, 50);
+    });
+
+
 
     // WebSocket подключение
     function connect() {

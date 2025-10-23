@@ -93,28 +93,41 @@
             gap: 15px;
         }
 
-        .track-info {
-            text-align: center;
-        }
-
         .track-title {
-            font-size: 20px;
+            font-size: 32px;
             font-weight: 700;
             margin-bottom: 6px;
             color: var(--text-color);
-            line-height: 1.2;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.3;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            word-wrap: break-word;
+            max-height: none;
+            display: -webkit-box;
+            -webkit-line-clamp: unset;
+            -webkit-box-orient: vertical;
         }
 
         .artist-name {
-            font-size: 14px;
+            font-size: 24px;
             color: var(--secondary-color);
             font-weight: 500;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.1;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            word-wrap: break-word;
+            max-height: none;
+            display: -webkit-box;
+            -webkit-line-clamp: unset;
+            -webkit-box-orient: vertical;
+        }
+
+        .track-info {
+            text-align: center;
+            margin-bottom: 15px;
+            min-height: auto; /* Убираем фиксированную высоту */
         }
 
         .visualizer-section {
@@ -255,7 +268,7 @@
     <div class="player-container" id="player">
         <!-- ПОДЛОЖКА 1 - COVER -->
         <div class="cover-section">
-            <img class="album-cover" id="cover" src="" alt="Album Cover">
+            <img class="album-cover" id="cover" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
         </div>
 
         <!-- ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ -->
@@ -363,6 +376,17 @@
         }
     }
 
+    function createVisualizer() {
+        visualizer.innerHTML = '';
+        for (let i = 0; i < 14; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'visualizer-bar';
+            bar.dataset.phase = (Math.random() * Math.PI * 2).toFixed(2); // уникальная фаза
+            bar.style.height = '3px';
+            visualizer.appendChild(bar);
+        }
+    }
+
     // Анимация визуализатора
     function animateVisualizer() {
         if (!currentConfig.wave_enabled) {
@@ -371,19 +395,32 @@
         }
 
         const bars = document.querySelectorAll('.visualizer-bar');
-        const time = Date.now() * 0.002;
+        const time = performance.now() * 0.005; // медленнее и стабильнее, чем Date.now()
 
         bars.forEach((bar, index) => {
-            const offset = index * 0.25;
-            const height = 3 + Math.abs(Math.sin(time + offset) * 27);
-            bar.style.height = `${height}px`;
+            const offset = index * 0.3;
+            const baseHeight = 3;
+            const maxHeight = 45;
 
-            const opacity = 0.4 + (height / 30) * 0.6;
-            bar.style.opacity = opacity;
+            // Медленнее и мягче "дышит" — с фазовым смещением
+            const phase = parseFloat(bar.dataset.phase);
+            const wave = Math.sin(time + offset + phase) * Math.cos(time * 0.7 + phase);
+            const targetHeight = baseHeight + Math.abs(wave) * (maxHeight - baseHeight);
+
+            // Интерполяция с плавным откликом (в духе inertia)
+            const currentHeight = parseFloat(bar.style.height) || baseHeight;
+            const newHeight = currentHeight + (targetHeight - currentHeight) * 0.06; // меньше шаг = мягче
+
+            // Применяем сглаживание по прозрачности
+            const opacity = 0.25 + (newHeight / maxHeight) * 0.75;
+
+            bar.style.height = `${newHeight.toFixed(1)}px`;
+            bar.style.opacity = opacity.toFixed(2);
         });
 
         animationFrame = requestAnimationFrame(animateVisualizer);
     }
+
 
     function stopVisualizer() {
         cancelAnimationFrame(animationFrame);
@@ -496,6 +533,33 @@
             animateVisualizer();
         }
     }
+
+    function goToIndex() {
+        const player = document.getElementById('player');
+        player.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        player.style.opacity = '0';
+        player.style.transform = 'scale(0.95)';
+
+        setTimeout(() => {
+            window.location.href = '/index.html';
+        }, 300);
+    }
+
+    // Улучшенная анимация появления
+    document.addEventListener('DOMContentLoaded', function() {
+        const player = document.getElementById('player');
+
+        // Начальное состояние
+        player.style.opacity = '0';
+        player.style.transform = 'scale(1.05)';
+
+        // Анимация через небольшой таймаут для плавности
+        setTimeout(() => {
+            player.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            player.style.opacity = '1';
+            player.style.transform = 'scale(1)';
+        }, 50);
+    });
 
     // WebSocket подключение
     function connect() {

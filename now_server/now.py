@@ -6,6 +6,7 @@ import socket
 import json
 from pathlib import Path
 import sys
+from now_server.cover_fetcher import cover_fetcher
 
 
 
@@ -51,21 +52,44 @@ def is_port_in_use(port):
         return s.connect_ex(('localhost', port)) == 0
 
 
-async def save_cover_image(thumbnail):
-    cover_path = os.path.join(output_dir, "cover.png")
-    try:
-        stream = await thumbnail.open_read_async()
-        reader = DataReader(stream)
-        await reader.load_async(stream.size)
-        buffer = reader.read_buffer(stream.size)
+# async def save_cover_image(thumbnail):
+#     cover_path = os.path.join(output_dir, "cover.png")
+#     try:
+#         stream = await thumbnail.open_read_async()
+#         reader = DataReader(stream)
+#         await reader.load_async(stream.size)
+#         buffer = reader.read_buffer(stream.size)
+#
+#         with open(cover_path, 'wb') as f:
+#             f.write(buffer)
+#         return True
+#     except Exception as e:
+#         print(f"Ошибка сохранения обложки: {e}")
+#         return False
 
-        with open(cover_path, 'wb') as f:
-            f.write(buffer)
-        return True
-    except Exception as e:
-        print(f"Ошибка сохранения обложки: {e}")
-        return False
+async def notify_cover_replaced(artist, title):
+    current_data["cover_version"] += 1
+    msg = {
+        "type": "update",
+        "data": {
+            "artist": artist,
+            "title": title,
+            "position": current_data["position"],
+            "duration": current_data["duration"],
+            "is_playing": current_data["is_playing"],
+            "cover_url": f"/cover?v={current_data['cover_version']}",
+            "config": current_config,
+            "status": "active"
+        }
+    }
+    for ws in list(current_data['listeners']):
+        try:
+            await ws.send_json(msg)
+        except:
+            current_data['listeners'].remove(ws)
 
+# 💥 назначаем callback для cover_fetcher
+cover_fetcher.on_cover_replaced = notify_cover_replaced
 
 async def media_monitor():
     while True:
@@ -77,26 +101,24 @@ async def media_monitor():
                 new_artist = media_info.artist or "Unknown Artist"
                 new_title = media_info.title or "Unknown Title"
 
-                # ПОЛУЧАЕМ ДАННЫЕ О ПРОГРЕССЕ
+                # Получаем данные о прогрессе
                 timeline_properties = current_session.get_timeline_properties()
                 playback_info = current_session.get_playback_info()
 
                 position = timeline_properties.position.total_seconds() if timeline_properties else 0
                 duration = timeline_properties.end_time.total_seconds() if timeline_properties else 0
-                is_playing = playback_info.playback_status == 4  # 4 = Playing
+                is_playing = playback_info.playback_status == 4
 
                 # Проверяем, изменились ли данные
                 if (current_data["artist"] != new_artist or
-                        current_data["title"] != new_title or
-                        current_data.get("position") != position or
-                        current_data.get("duration") != duration or
-                        current_data.get("is_playing") != is_playing):
+                        current_data["title"] != new_title):
 
-                    cover_updated = False
-                    if media_info.thumbnail:
-                        cover_updated = await save_cover_image(media_info.thumbnail)
+                    # ИСПОЛЬЗУЕМ COVER_FETCHER ДЛЯ ПОЛУЧЕНИЯ ЛУЧШЕЙ ОБЛОЖКИ
+                    cover_path, cover_updated = await cover_fetcher.get_best_cover(
+                        media_info, new_artist, new_title, output_dir
+                    )
 
-                    # ОБНОВЛЯЕМ ДАННЫЕ С ПРОГРЕССОМ
+                    # Обновляем данные
                     current_data.update({
                         "artist": new_artist,
                         "title": new_title,
@@ -107,7 +129,7 @@ async def media_monitor():
                         if cover_updated else current_data["cover_version"]
                     })
 
-                    # ОТПРАВЛЯЕМ ОБНОВЛЕНИЕ С ПРОГРЕССОМ
+                    # Отправляем обновление
                     msg = {
                         "type": "update",
                         "data": {
@@ -135,6 +157,12 @@ async def media_monitor():
 
         await asyncio.sleep(3)
 
+@routes.get('/external_cover')
+async def external_cover(request):
+    cover_path = os.path.join(output_dir, "external_cover.png")
+    if not os.path.exists(cover_path):
+        return web.Response(status=404)
+    return web.FileResponse(cover_path)
 
 @routes.get('/')
 async def index(request):

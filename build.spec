@@ -12,6 +12,7 @@ a = Analysis(
         ('now_server/*.py', 'now_server'),
         ('now_server/*.html', 'now_server'),
         ('config.json', '.'),
+        ('now_server/cover_fetcher.py', 'now_server'),
         ('config.py', '.'),
         ('config_manager.py', '.'),
         ('icon.ico', '.'),

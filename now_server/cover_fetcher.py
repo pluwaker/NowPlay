@@ -12,6 +12,7 @@ import re
 # Правильный импорт get_cover_art
 try:
     from get_cover_art import CoverArt
+
     HAS_GET_COVER_ART = True
 except ImportError:
     HAS_GET_COVER_ART = False
@@ -26,6 +27,8 @@ class CoverFetcher:
         self.debug = True
         self.on_cover_replaced = None
         self.use_itunes = self.config.get("use_itunes", True)
+        self.use_yandex_music = self.config.get("use_yandex_music", True)
+        self.use_vk_music = self.config.get("use_vk_music", True)
 
     def log(self, msg, error=False):
         if self.debug:
@@ -117,14 +120,25 @@ class CoverFetcher:
             return False
 
     async def _try_external_sources(self, artist, title):
-        # 1. iTunes API (первый приоритет)
+        # 1. Яндекс Музыка (высокий приоритет для русского контента)
+        if self.use_yandex_music:
+            self.log("Пробуем Яндекс Музыку...")
+            yandex_data = await self._try_yandex_music_cover(artist, title)
+            if yandex_data:
+                return yandex_data
+
+        if self.use_vk_music:
+            vk_data = await self._try_vk_music_cover(artist, title)
+            if vk_data: return vk_data
+
+        # 2. iTunes API
         if self.use_itunes:
             self.log("Пробуем iTunes API...")
             itunes_data = await self._try_itunes_cover(artist, title)
             if itunes_data:
                 return itunes_data
 
-        # 2. Last.fm
+        # 3. Last.fm
         self.log("Пробуем Last.fm...")
         lastfm_data = await self._try_lastfm_safe(artist, title)
         if lastfm_data:
@@ -132,15 +146,95 @@ class CoverFetcher:
 
         return None
 
-    import json
-    import re
-    import urllib.parse
+    async def _try_yandex_music_cover(self, artist, title):
+        """Поиск обложки через Яндекс Музыку"""
+        try:
+            self.log(f"Яндекс Музыка поиск: {artist} - {title}")
+
+            # Кодируем запрос
+            query = urllib.parse.quote(f"{artist} {title}")
+            url = f"https://api.music.yandex.net/search?text={query}&type=track&page=0&pageSize=5"
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Referer": "https://music.yandex.ru/",
+                "Origin": "https://music.yandex.ru"
+            }
+
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.get(url, headers=headers) as resp:
+                    self.log(f"Яндекс Музыка → {resp.status}")
+
+                    if resp.status != 200:
+                        self.log(f"Яндекс Музыка: ошибка HTTP {resp.status}", error=True)
+                        return None
+
+                    try:
+                        data = await resp.json()
+                    except Exception as e:
+                        self.log(f"Яндекс Музыка: ошибка парсинга JSON: {e}", error=True)
+                        return None
+
+                    # Парсим структуру ответа Яндекс Музыки
+                    tracks = data.get('result', {}).get('tracks', {}).get('results', [])
+
+                    if not tracks:
+                        self.log("Яндекс Музыка: треки не найдены")
+                        return None
+
+                    # Нормализуем для сравнения
+                    orig_artist = self._normalize(artist)
+                    orig_title = self._normalize(title)
+
+                    best_match = None
+                    best_score = 0
+
+                    for track in tracks:
+                        # Получаем основного артиста
+                        track_artists = track.get('artists', [])
+                        track_artist = self._normalize(track_artists[0].get('name', '')) if track_artists else ""
+                        track_title = self._normalize(track.get('title', ''))
+
+                        # Вычисляем score совпадения
+                        score = 0
+                        if orig_artist in track_artist or track_artist in orig_artist:
+                            score += 50
+                        if orig_title in track_title or track_title in orig_title:
+                            score += 50
+                        if track.get('title', '').lower() == title.lower():
+                            score += 100  # точное совпадение названия
+
+                        # Получаем обложку альбома
+                        album = track.get('albums', [{}])[0] if track.get('albums') else {}
+                        cover_uri = album.get('coverUri')
+
+                        if cover_uri and score > best_score:
+                            best_score = score
+                            # Формируем URL обложки максимального качества
+                            cover_url = f"https://{cover_uri.replace('%%', '1000x1000')}"
+                            best_match = cover_url
+
+                    if best_match and best_score >= 70:
+                        self.log(f"Яндекс Музыка: найдено совпадение (score: {best_score}) → {best_match}")
+                        return await self._download_image(session, best_match)
+                    else:
+                        self.log(f"Яндекс Музыка: нет точного совпадения (лучший score: {best_score})")
+                        return None
+
+        except asyncio.TimeoutError:
+            self.log("Яндекс Музыка: таймаут запроса", error=True)
+            return None
+        except Exception as e:
+            self.log(f"Яндекс Музыка ошибка: {e}", error=True)
+            return None
 
     async def _try_itunes_cover(self, artist, title):
         try:
             self.log(f"iTunes поиск: {artist} - {title}")
             term = urllib.parse.quote(f"{artist} {title}")
-            url = f"https://itunes.apple.com/search?term={term}&entity=song&limit=5&media=music"  # limit=5 для выбора лучшего
+            url = f"https://itunes.apple.com/search?term={term}&entity=song&limit=5&media=music"
 
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -170,7 +264,7 @@ class CoverFetcher:
                         self.log("iTunes: ничего не найдено")
                         return None
 
-                    # --- НОРМАЛИЗАЦИЯ ---
+                    # Нормализация
                     orig_artist = self._normalize(artist)
                     orig_title = self._normalize(title)
 
@@ -187,13 +281,13 @@ class CoverFetcher:
                         if orig_title in itunes_title or itunes_title in orig_title:
                             score += 50
                         if track.get("trackName", "").lower() == title.lower():
-                            score += 100  # точное совпадение названия
+                            score += 100
 
                         if score > best_score:
                             best_score = score
                             best_match = track
 
-                    if best_match and best_score >= 70:  # порог доверия
+                    if best_match and best_score >= 70:
                         cover_url = best_match.get("artworkUrl100", "").replace("100x100bb", "1000x1000bb")
                         self.log(f"iTunes: точное совпадение → {cover_url} (score: {best_score})")
                         return await self._download_image(session, cover_url)
@@ -205,40 +299,14 @@ class CoverFetcher:
             self.log(f"iTunes ошибка: {e}", error=True)
             return None
 
-        return None
-
     def _normalize(self, text):
         """Приводим к нижнему регистру, убираем лишнее"""
         if not text:
             return ""
         text = text.lower()
-        text = re.sub(r'[^a-zа-я0-9\s]', '', text)  # только буквы, цифры, пробелы
+        text = re.sub(r'[^a-zа-я0-9\s]', '', text)
         text = re.sub(r'\s+', ' ', text).strip()
         return text
-
-    def _get_itunes_cover_sync(self, artist, title):
-        """Синхронный поиск через get_cover_art.itunes()"""
-        try:
-            # Правильный вызов: через экземпляр CoverArt
-            results = self._cover_art.itunes(artist=artist, title=title, limit=1)
-            if not results:
-                self.log(f"iTunes: ничего не найдено для '{artist} - {title}'")
-                return None
-
-            track = results[0]
-            url = track.artwork_url
-
-            # Заменяем низкое разрешение на максимальное
-            if '100x100' in url:
-                url = url.replace('100x100', '1000x1000')
-            elif '60x60' in url:
-                url = url.replace('60x60', '1000x1000')
-
-            return {'url': url, 'source': 'itunes'}
-
-        except Exception as e:
-            self.log(f"Ошибка в синхронном iTunes поиске: {e}", error=True)
-            return None
 
     async def _get_system_cover_data(self, thumbnail):
         try:
@@ -278,6 +346,127 @@ class CoverFetcher:
             self.log(f"Last.fm error: {e}", error=True)
         return None
 
+    async def _try_vk_music_cover(self, artist, title):
+        """Поиск через VK Music с улучшенным парсингом"""
+        try:
+            self.log(f"VK Music поиск: {artist} - {title}")
+
+            query = urllib.parse.quote(f"{artist} {title}")
+            url = f"https://vk.com/audio?act=search&q={query}"
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Referer": "https://vk.com/",
+            }
+
+            connector = aiohttp.TCPConnector(verify_ssl=False)
+
+            async with aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(total=15),
+                    connector=connector
+            ) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status != 200:
+                        self.log(f"VK Music: HTTP {resp.status}")
+                        return None
+
+                    html = await resp.text()
+
+                    # Ищем данные в нескольких местах
+                    import re
+                    import html as html_module
+
+                    # 1. Ищем в JSON данных
+                    json_patterns = [
+                        r'window\.AudioPage\s*=\s*({.*?});',
+                        r'var\s+audioData\s*=\s*({.*?});',
+                        r'<script[^>]*>.*?AudioPage\.data\s*=\s*({.*?});.*?</script>',
+                    ]
+
+                    for pattern in json_patterns:
+                        match = re.search(pattern, html, re.DOTALL)
+                        if match:
+                            try:
+                                json_str = html_module.unescape(match.group(1))
+                                data = json.loads(json_str)
+                                # Пробуем найти обложку в JSON структуре
+                                cover_url = self._extract_cover_from_vk_json(data)
+                                if cover_url:
+                                    self.log(f"VK Music: найдено в JSON → {cover_url}")
+                                    return await self._download_image(session, cover_url)
+                            except Exception as e:
+                                self.log(f"VK Music JSON parse error: {e}")
+                                continue
+
+                    # 2. Ищем напрямую в HTML по классам VK
+                    html_patterns = [
+                        r'class="audio_page_audio_cover[^"]*"[^>]*style="[^"]*url\(([^)]+)\)',
+                        r'data-background-image="([^"]+)"',
+                        r'<img[^>]*class="[^"]*cover[^"]*"[^>]*src="([^"]+)"',
+                        r'background-image:\s*url\([\'"]?([^\'")]+)',
+                    ]
+
+                    for pattern in html_patterns:
+                        matches = re.findall(pattern, html, re.IGNORECASE)
+                        for match in matches:
+                            if match and any(x in match for x in ['cover', 'album', 'thumb', 'audio']):
+                                cover_url = match
+                                if 'http' not in cover_url:
+                                    cover_url = 'https:' + cover_url if cover_url.startswith(
+                                        '//') else 'https://vk.com' + cover_url
+                                self.log(f"VK Music: найдено в HTML → {cover_url}")
+                                return await self._download_image(session, cover_url)
+
+                    # 3. Ищем по прямым ссылкам на изображения
+                    image_urls = re.findall(r'https://[^"\']+\.(?:jpg|jpeg|png|webp)[^"\']*', html)
+                    for img_url in image_urls:
+                        if any(x in img_url for x in ['/audio/', '/cover/', '/album/', 'thumb_']):
+                            self.log(f"VK Music: найдена прямая ссылка → {img_url}")
+                            return await self._download_image(session, img_url)
+
+                    self.log("VK Music: обложка не найдена после всех попыток")
+                    return None
+
+        except Exception as e:
+            self.log(f"VK Music ошибка: {e}", error=True)
+            return None
+
+    def _extract_cover_from_vk_json(self, data):
+        """Извлекаем обложку из JSON структуры VK"""
+        try:
+            # Пробуем разные пути в JSON
+            if isinstance(data, dict):
+                # Пробуем найти в списке аудио
+                for key in ['list', 'audios', 'items']:
+                    if key in data and isinstance(data[key], list) and data[key]:
+                        first_track = data[key][0]
+                        if 'album' in first_track and 'thumb' in first_track['album']:
+                            return first_track['album']['thumb'].get('photo_600')
+                        elif 'thumb' in first_track:
+                            return first_track['thumb']
+        except:
+            pass
+        return None
+
+    def _extract_cover_from_vk_json(self, data):
+        """Извлекаем обложку из JSON структуры VK"""
+        try:
+            # Пробуем разные пути в JSON
+            if isinstance(data, dict):
+                # Пробуем найти в списке аудио
+                for key in ['list', 'audios', 'items']:
+                    if key in data and isinstance(data[key], list) and data[key]:
+                        first_track = data[key][0]
+                        if 'album' in first_track and 'thumb' in first_track['album']:
+                            return first_track['album']['thumb'].get('photo_600')
+                        elif 'thumb' in first_track:
+                            return first_track['thumb']
+        except:
+            pass
+        return None
+
     def _is_default_lastfm_cover(self, image_url):
         return any(
             x in image_url
@@ -305,7 +494,7 @@ class CoverFetcher:
             self.log(f"Скачиваем: {url}")
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Referer": "https://music.apple.com/"
+                "Referer": "https://music.yandex.ru/"
             }
             async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:

@@ -28,8 +28,8 @@
             color: var(--text-color);
             min-height: 100vh;
             display: flex;
-            justify-content: flex-end;
-            align-items: flex-end;
+            justify-content: var(--justify-content);
+            align-items: var(--align-items);
             padding: 20px;
         }
         @media screen and (min-width: 1024px) {
@@ -93,7 +93,7 @@
         }
 
         .artist-name {
-            font-size: 24px;
+            font-size: 32px;
             color: var(--secondary-color);
             font-weight: 500;
         }
@@ -144,7 +144,7 @@
         .time-display {
             display: flex;
             justify-content: space-between;
-            font-size: 12px;
+            font-size: 18px;
             color: var(--secondary-color);
             font-weight: 500;
         }
@@ -417,6 +417,8 @@
             document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
             document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#535353');
             document.documentElement.style.setProperty('--wave-color', config.wave_color || config.accent_color || '#1db954');
+            document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
+            document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end')
 
             // Применяем цвет артиста напрямую к элементу
             const artistElement = document.getElementById('artist');

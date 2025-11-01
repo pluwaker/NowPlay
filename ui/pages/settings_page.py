@@ -63,6 +63,29 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.main_color_btn.pack(side="right")
 
+
+        # Акцентный цвет
+        color_accent_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        color_accent_frame.pack(fill="x", padx=20, pady=(0, 10))
+
+        ctk.CTkLabel(
+            color_accent_frame,
+            text="Акцентный цвет (градиент волны)",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.accent_color_btn = ctk.CTkButton(
+            color_accent_frame,
+            text="",
+            width=40,
+            height=30,
+            fg_color=self.config_data["accent_color"],
+            hover_color=self.config_data["accent_color"],
+            command=lambda: self.change_color("accent_color")
+        )
+        self.accent_color_btn.pack(side="right")
+
         # Цвет текста
         color_text_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
         color_text_frame.pack(fill="x", padx=20, pady=(0, 10))
@@ -193,6 +216,39 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.wave_switch.pack(side="right")
 
+        # Изменение позиции
+        position_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        position_frame.pack(fill="x", padx=20, pady=(10, 15))
+
+        ctk.CTkLabel(
+            position_frame,
+            text="Позиционирование",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        positions = {
+            "Слева-сверху": ("flex-start", "flex-start"),
+            "Справа-сверху": ("flex-end", "flex-start"),
+            "Слева-снизу": ("flex-start", "flex-end"),
+            "Справа-снизу": ("flex-end", "flex-end"),
+            "Центр": ("center", "center")
+        }
+
+        self.position_var = ctk.StringVar(
+            value=self.config_data.get("position", "Справа-снизу")
+        )
+
+        self.position_menu = ctk.CTkOptionMenu(
+            position_frame,
+            values=list(positions.keys()),
+            variable=self.position_var,
+            command=self.change_position
+        )
+        self.position_menu.pack(side="right")
+
+        self.positions_map = positions  # сохраним для доступа при сохранении
+
         # Разделительная линия
         separator = ctk.CTkFrame(self, height=2, fg_color="#444444")
         separator.pack(fill="x", padx=40, pady=15)
@@ -267,6 +323,14 @@ class SettingsPage(ctk.CTkFrame):
             self.url_frame.pack_forget()
             self.copy_btn.configure(state="disabled")
 
+    def change_position(self, choice):
+        """Меняет позицию отображения"""
+        if choice in self.positions_map:
+            justify, align = self.positions_map[choice]
+            self.config_data["position"] = choice
+            self.config_data["justify_content"] = justify
+            self.config_data["align_items"] = align
+
     def change_color(self, color_type):
         """Изменяет цвет"""
         current_color = self.config_data.get(color_type, self.get_default_color(color_type))
@@ -279,6 +343,8 @@ class SettingsPage(ctk.CTkFrame):
             self.config_data[color_type] = color_code
             if color_type == "main_color":
                 self.main_color_btn.configure(fg_color=color_code, hover_color=color_code)
+            elif color_type == "accent_color":
+                self.accent_color_btn.configure(fg_color=color_code, hover_color=color_code)
             elif color_type == "text_color":
                 self.text_color_btn.configure(fg_color=color_code, hover_color=color_code)
             elif color_type == "artist_color":

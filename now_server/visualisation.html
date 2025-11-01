@@ -20,8 +20,8 @@
             margin: 0;
             padding: 0;
             display: flex;
-            justify-content: flex-end;
-            align-items: flex-end;
+            justify-content: var(--justify-content);
+            align-items: var(--align-items);
             min-height: 100vh;
         }
 
@@ -80,7 +80,7 @@
             animation: marquee 15s linear infinite;
         }
         .artist-name {
-            font-size: 24px;
+            font-size: 32px;
             color: var(--text-color);
             opacity: 0.8;
             margin-bottom: 12px;
@@ -154,7 +154,7 @@
         .progress-time {
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
+            font-size: 18px;
             color: var(--text-color);
             opacity: 0.7;
             margin-top: 5px;
@@ -326,10 +326,13 @@
             console.log('Применяем настройки:', config);
 
             document.documentElement.style.setProperty('--bg-color', config.main_color || 'rgba(30, 30, 30, 1)');
+            document.documentElement.style.setProperty('--accent-color', config.accent_color || '#1db954');
             document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
             document.documentElement.style.setProperty('--wave-color', config.wave_color || '#1db954');
             document.documentElement.style.setProperty('--progress-color', config.progress_color || '#1db954');
             document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
+            document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
+            document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end')
 
             setTimeout(() => {
                 checkTextOverflow(title, titleContainer);

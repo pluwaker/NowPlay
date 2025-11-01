@@ -14,9 +14,12 @@ class ConfigManager:
         # Настройки по умолчанию
         self.defaults = {
             "main_color": "#7642ff",  # Цвет подложки
+            "accent_color": "#7642ff",  # Цвет подложки
             "text_color": "#ffffff",  # Цвет текста
             "wave_color": "#59e8c8",  # Цвет волны
-            "wave_enabled": True
+            "wave_enabled": True,
+            "align": "flex-end",
+            "justify": "flex-end"
         }
 
     def load_config(self):

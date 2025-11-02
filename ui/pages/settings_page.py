@@ -19,18 +19,26 @@ class SettingsPage(ctk.CTkFrame):
         self.create_widgets()
 
     def create_widgets(self):
+        # Создаем прокручиваемый контейнер для всего контента
+        self.scrollable_frame = ctk.CTkScrollableFrame(
+            self,
+            fg_color="#1e1e1e",
+            corner_radius=0
+        )
+        self.scrollable_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        
         # Заголовок
         title_label = ctk.CTkLabel(
-            self,
+            self.scrollable_frame,
             text="SETTINGS",
             font=ctk.CTkFont(size=24, weight="bold"),
             text_color="#ffffff"
         )
-        title_label.pack(pady=(30, 20))
+        title_label.pack(pady=(20, 20))
 
         # Секция "Шаблоны"
-        templates_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
-        templates_frame.pack(pady=(0, 20), padx=40, fill="x")
+        templates_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        templates_frame.pack(pady=(0, 20), padx=30, fill="x")
 
         # Заголовок секции
         section_title = ctk.CTkLabel(
@@ -158,7 +166,7 @@ class SettingsPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             color_progress1_frame,
-            text="Градиент прогресс-бара (начало)",
+            text="Задний фон прогресс бара",
             font=ctk.CTkFont(size=14),
             text_color="#cccccc"
         ).pack(side="left")
@@ -180,7 +188,7 @@ class SettingsPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             color_progress2_frame,
-            text="Градиент прогресс-бара (конец)",
+            text="Цвет прогресс бара",
             font=ctk.CTkFont(size=14),
             text_color="#cccccc"
         ).pack(side="left")
@@ -216,6 +224,60 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.wave_switch.pack(side="right")
 
+        # Подсветка (переключатель)
+        ambient_switch_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        ambient_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            ambient_switch_frame,
+            text="Подсветка обложки",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.ambient_switch_var = ctk.BooleanVar(value=self.config_data.get("ambient_light_enabled", True))
+        self.ambient_switch = ctk.CTkSwitch(
+            ambient_switch_frame,
+            text="",
+            variable=self.ambient_switch_var,
+            command=self.toggle_ambient_light
+        )
+        self.ambient_switch.pack(side="right")
+
+        # Автоматические цвета (переключатель)
+        auto_colors_switch_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        auto_colors_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            auto_colors_switch_frame,
+            text="Автоматические цвета",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.auto_colors_switch_var = ctk.BooleanVar(value=self.config_data.get("auto_colors_enabled", False))
+        self.auto_colors_switch = ctk.CTkSwitch(
+            auto_colors_switch_frame,
+            text="",
+            variable=self.auto_colors_switch_var,
+            command=self.toggle_auto_colors
+        )
+        self.auto_colors_switch.pack(side="right")
+
+        # Сохраняем список всех кнопок цветов для управления их состоянием
+        self.color_buttons = [
+            ("main_color", self.main_color_btn),
+            ("accent_color", self.accent_color_btn),
+            ("text_color", self.text_color_btn),
+            ("artist_color", self.artist_color_btn),
+            ("wave_color", self.wave_color_btn),
+            ("progress_color1", self.progress_color1_btn),
+            ("progress_color2", self.progress_color2_btn)
+        ]
+
+        # Инициализируем состояние кнопок
+        self.update_color_buttons_state()
+
         # Изменение позиции
         position_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
         position_frame.pack(fill="x", padx=20, pady=(10, 15))
@@ -249,24 +311,26 @@ class SettingsPage(ctk.CTkFrame):
 
         self.positions_map = positions  # сохраним для доступа при сохранении
 
+
         # Разделительная линия
-        separator = ctk.CTkFrame(self, height=2, fg_color="#444444")
-        separator.pack(fill="x", padx=40, pady=15)
+        separator = ctk.CTkFrame(self.scrollable_frame, height=2, fg_color="#444444")
+        separator.pack(fill="x", padx=30, pady=15)
 
         # Кнопка сохранения
         self.save_btn = ctk.CTkButton(
-            self,
+            self.scrollable_frame,
             text="Сохранить настройки",
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color="#1db954",
             hover_color="#1aa34a",
             height=40,
+            width=250,
             command=self.save_settings
         )
-        self.save_btn.pack(pady=10)
+        self.save_btn.pack(pady=15)
 
         # Блок с ссылкой (только если сервер запущен)
-        self.url_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=8)
+        self.url_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=8)
 
         # Заголовок ссылки
         url_title = ctk.CTkLabel(
@@ -317,7 +381,7 @@ class SettingsPage(ctk.CTkFrame):
         url = self.controller.obs_link.get()
         if url:
             self.url_label.configure(text=url)
-            self.url_frame.pack(pady=(0, 30), padx=40, fill="x", after=self.save_btn)
+            self.url_frame.pack(pady=(0, 30), padx=30, fill="x")
             self.copy_btn.configure(state="normal")
         else:
             self.url_frame.pack_forget()
@@ -333,6 +397,14 @@ class SettingsPage(ctk.CTkFrame):
 
     def change_color(self, color_type):
         """Изменяет цвет"""
+        # Проверяем, включены ли автоматические цвета
+        if self.config_data.get("auto_colors_enabled", False):
+            messagebox.showwarning(
+                "Автоматические цвета включены",
+                "Отключите 'Автоматические цвета', чтобы изменить цвета вручную."
+            )
+            return
+
         current_color = self.config_data.get(color_type, self.get_default_color(color_type))
         color_code = colorchooser.askcolor(
             title=f"Выберите {color_type}",
@@ -368,6 +440,25 @@ class SettingsPage(ctk.CTkFrame):
     def toggle_wave(self):
         """Переключает визуализатор волны"""
         self.config_data["wave_enabled"] = self.wave_switch_var.get()
+
+    def toggle_ambient_light(self):
+        """Переключает подсветку обложки"""
+        self.config_data["ambient_light_enabled"] = self.ambient_switch_var.get()
+
+    def toggle_auto_colors(self):
+        """Переключает автоматические цвета"""
+        self.config_data["auto_colors_enabled"] = self.auto_colors_switch_var.get()
+        self.update_color_buttons_state()
+
+    def update_color_buttons_state(self):
+        """Обновляет состояние кнопок цветов в зависимости от режима автоматических цветов"""
+        auto_enabled = self.config_data.get("auto_colors_enabled", False)
+        
+        for color_type, button in self.color_buttons:
+            if auto_enabled:
+                button.configure(state="disabled")
+            else:
+                button.configure(state="normal")
 
     def save_settings(self):
         """Сохраняет настройки"""

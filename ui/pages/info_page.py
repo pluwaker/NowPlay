@@ -11,18 +11,30 @@ class InfoPage(ctk.CTkFrame):
         self.create_widgets()
 
     def create_widgets(self):
+        # Основной контейнер с вертикальным центрированием
+        main_container = ctk.CTkFrame(self, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Пустой фрейм для верхнего отступа (для центрирования)
+        top_spacer = ctk.CTkFrame(main_container, fg_color="transparent", height=1)
+        top_spacer.pack(fill="x", expand=True)
+        
+        # Внутренний контейнер для контента
+        inner_container = ctk.CTkFrame(main_container, fg_color="transparent")
+        inner_container.pack(fill="x", padx=30)
+        
         # Заголовок
         title_label = ctk.CTkLabel(
-            self,
+            inner_container,
             text="INFO",
             font=ctk.CTkFont(size=24, weight="bold"),
             text_color="#ffffff"
         )
-        title_label.pack(pady=(30, 20))
+        title_label.pack(pady=(0, 20))
 
         # Информация в рамке
-        info_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
-        info_frame.pack(pady=(0, 20), padx=40, fill="x")
+        info_frame = ctk.CTkFrame(inner_container, fg_color="#2b2b2b", corner_radius=10)
+        info_frame.pack(pady=(0, 20), fill="x")
 
         info_text = (
             "🎧 NowPlay Server v1.0\n\n"
@@ -43,7 +55,11 @@ class InfoPage(ctk.CTkFrame):
         info_label.pack(pady=25, padx=20)
 
         # Блок с ссылкой (только если сервер запущен)
-        self.url_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=8)
+        self.url_frame = ctk.CTkFrame(inner_container, fg_color="#2b2b2b", corner_radius=8)
+        
+        # Нижний спейсер для центрирования
+        bottom_spacer = ctk.CTkFrame(main_container, fg_color="transparent", height=1)
+        bottom_spacer.pack(fill="x", expand=True)
 
         # Следим за изменениями ссылки
         self.controller.obs_link.trace_add("write", self.on_url_changed)
@@ -94,7 +110,7 @@ class InfoPage(ctk.CTkFrame):
             )
             copy_btn.pack(side="right", padx=(10, 0))
 
-            self.url_frame.pack(pady=(0, 30), padx=40, fill="x")
+            self.url_frame.pack(pady=(10, 0), fill="x")
         else:
             self.url_frame.pack_forget()
 

@@ -8,23 +8,36 @@ class StartPage(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color="#1e1e1e")
         self.controller = controller
+        self.main_container = None
 
         self.create_widgets()
         self.update_display()
 
     def create_widgets(self):
+        # Основной контейнер с вертикальным центрированием
+        main_container = ctk.CTkFrame(self, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Пустой фрейм для верхнего отступа (для центрирования)
+        top_spacer = ctk.CTkFrame(main_container, fg_color="transparent", height=1)
+        top_spacer.pack(fill="x", expand=True)
+        
+        # Внутренний контейнер для контента
+        inner_container = ctk.CTkFrame(main_container, fg_color="transparent")
+        inner_container.pack(fill="x", padx=30)
+        
         # Заголовок
         title_label = ctk.CTkLabel(
-            self,
+            inner_container,
             text="START/STOP",
             font=ctk.CTkFont(size=24, weight="bold"),
             text_color="#ffffff"
         )
-        title_label.pack(pady=(30, 20))
+        title_label.pack(pady=(0, 20))
 
         # Инструкция в рамке
-        instruction_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
-        instruction_frame.pack(pady=(0, 20), padx=40, fill="x")
+        instruction_frame = ctk.CTkFrame(inner_container, fg_color="#2b2b2b", corner_radius=10)
+        instruction_frame.pack(pady=(0, 20), fill="x")
 
         instruction_text = (
             "1. Запустите OBS\n"
@@ -33,7 +46,7 @@ class StartPage(ctk.CTkFrame):
             "4. Впишите название источника и проверьте, что галочка 'Сделать источник видимым' стоит\n"
             "5. Нажмите 'ОК'\n"
             "6. В строке 'URL-адрес' вставьте ссылку, которая появится после нажатия кнопки 'Запустить'\n"
-            "7. Поставьте 'Ширину' 400, а 'Высоту' 500\n"
+            "7. Поставьте 'Ширину' 500, а 'Высоту' 900\n"
             "8. Нажмите 'ОК'"
         )
 
@@ -47,23 +60,28 @@ class StartPage(ctk.CTkFrame):
         instruction_label.pack(pady=20, padx=20)
 
         # Разделительная линия
-        separator = ctk.CTkFrame(self, height=2, fg_color="#444444")
-        separator.pack(fill="x", padx=40, pady=15)
+        separator = ctk.CTkFrame(inner_container, height=2, fg_color="#444444")
+        separator.pack(fill="x", pady=15)
 
         # Кнопка запуска/остановки
         self.start_btn = ctk.CTkButton(
-            self,
+            inner_container,
             text="Запустить",
             font=ctk.CTkFont(size=16, weight="bold"),
             fg_color="#1db954",
             hover_color="#1aa34a",
             height=45,
+            width=250,
             command=self.toggle_server
         )
-        self.start_btn.pack(pady=20)
+        self.start_btn.pack(pady=15)
+        
+        # Нижний спейсер для центрирования
+        bottom_spacer = ctk.CTkFrame(main_container, fg_color="transparent", height=1)
+        bottom_spacer.pack(fill="x", expand=True)
 
         # Поле с ссылкой (только когда сервер запущен)
-        self.url_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=8)
+        self.url_frame = ctk.CTkFrame(inner_container, fg_color="#2b2b2b", corner_radius=8)
 
         # Заголовок "Ссылка для источника"
         url_title = ctk.CTkLabel(
@@ -110,7 +128,7 @@ class StartPage(ctk.CTkFrame):
         if url:
             # Показываем блок с ссылкой
             self.url_label.configure(text=url)
-            self.url_frame.pack(pady=(0, 30), padx=40, fill="x", after=self.start_btn)
+            self.url_frame.pack(pady=(10, 0), fill="x")
             self.copy_btn.configure(state="normal")
         else:
             # Скрываем блок с ссылкой

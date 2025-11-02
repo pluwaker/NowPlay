@@ -91,11 +91,16 @@ async def notify_cover_replaced(artist, title):
 # 💥 назначаем callback для cover_fetcher
 cover_fetcher.on_cover_replaced = notify_cover_replaced
 
+
 async def media_monitor():
     last_artist = ""
     last_title = ""
     last_position = 0
     last_is_playing = False
+    last_duration = 0
+    track_change_time = 0
+    pending_track_change = False  # Флаг ожидающей смены трека
+
     while True:
         try:
             sessions = await MediaManager.request_async()
@@ -113,23 +118,96 @@ async def media_monitor():
                 duration = timeline_properties.end_time.total_seconds() if timeline_properties else 0
                 is_playing = playback_info.playback_status == 4
 
-                # Проверяем, изменились ли данные (трек или позиция или статус воспроизведения)
+                # Определяем, сменился ли трек
                 track_changed = (last_artist != new_artist or last_title != new_title)
-                position_changed = abs(
-                    last_position - position) > 2  # порог в 2 секунды чтобы избежать частых обновлений
+
+                if track_changed:
+                    print(f"🎵 Новый трек: {new_artist} - {new_title}")
+
+                    # Обнуляем всё
+                    current_data.update({
+                        "artist": new_artist,
+                        "title": new_title,
+                        "position": 0,
+                        "duration": 0,
+                        "is_playing": is_playing
+                    })
+
+                    # Отправляем моментальное обновление
+                    msg = {
+                        "type": "update",
+                        "data": {
+                            "artist": new_artist,
+                            "title": new_title,
+                            "position": 0,
+                            "duration": 0,
+                            "is_playing": is_playing,
+                            "cover_url": f"/cover?v={current_data['cover_version']}",
+                            "config": current_config,
+                            "status": "active"
+                        }
+                    }
+                    for ws in list(current_data['listeners']):
+                        try:
+                            await ws.send_json(msg)
+                        except:
+                            current_data['listeners'].remove(ws)
+
+                    # Обновляем обложку
+                    cover_path, cover_updated = await cover_fetcher.get_best_cover(
+                        media_info, new_artist, new_title, output_dir
+                    )
+                    if cover_updated:
+                        current_data["cover_version"] += 1
+
+                    # ⏳ Принудительно ждём обновления длительности
+                    real_duration = 0
+                    for i in range(10):  # максимум 5 секунд
+                        await asyncio.sleep(0.5)
+                        try:
+                            timeline = current_session.get_timeline_properties()
+                            new_dur = timeline.end_time.total_seconds() if timeline else 0
+                            if new_dur > 0 and new_dur != last_duration:
+                                real_duration = new_dur
+                                break
+                        except Exception:
+                            pass
+
+                    current_data["duration"] = real_duration
+
+                    # Отправляем финальное обновление, если изменилось
+                    msg["data"]["duration"] = real_duration
+                    for ws in list(current_data['listeners']):
+                        try:
+                            await ws.send_json(msg)
+                        except:
+                            current_data['listeners'].remove(ws)
+
+                    # Обновляем последние значения
+                    last_artist = new_artist
+                    last_title = new_title
+                    last_position = 0
+                    last_duration = real_duration
+                    last_is_playing = is_playing
+
+                    continue
+
+                # Если у нас ожидающая смены трека, проверяем валидность данных
+                if pending_track_change:
+                    # Проверяем, не являются ли данные устаревшими (позиция > 10% длительности)
+                    if duration > 0 and position > duration * 0.1:
+                        print(f"Обнаружены устаревшие данные: position={position}, duration={duration}")
+                        position = 0
+
+                    # Снимаем флаг через 3 секунды
+                    if asyncio.get_event_loop().time() - track_change_time > 3:
+                        pending_track_change = False
+
+                position_changed = abs(last_position - position) > 2
                 playback_status_changed = last_is_playing != is_playing
+                duration_changed = abs(last_duration - duration) > 1
 
-                if track_changed or position_changed or playback_status_changed:
-                    # Если сменился трек - обновляем обложку
-                    if track_changed:
-                        cover_path, cover_updated = await cover_fetcher.get_best_cover(
-                            media_info, new_artist, new_title, output_dir
-                        )
-
-                        # Обновляем версию обложки только если она изменилась
-                        if cover_updated:
-                            current_data["cover_version"] += 1
-
+                if position_changed or playback_status_changed or duration_changed:
                     # Обновляем данные
                     current_data.update({
                         "artist": new_artist,
@@ -164,6 +242,8 @@ async def media_monitor():
                     last_title = new_title
                     last_position = position
                     last_is_playing = is_playing
+                    last_duration = duration
+
             else:
                 # Нет активной сессии
                 if current_data["artist"] != "Не воспроизводится":
@@ -198,11 +278,13 @@ async def media_monitor():
                     last_title = "Нет данных"
                     last_position = 0
                     last_is_playing = False
+                    last_duration = 0
+                    pending_track_change = False
 
         except Exception as e:
             print(f"Ошибка мониторинга медиа: {e}")
 
-        await asyncio.sleep(1)  # Уменьшаем задержку для более плавного обновления позиции
+        await asyncio.sleep(1)
 
 @routes.get('/external_cover')
 async def external_cover(request):
@@ -231,6 +313,20 @@ async def cover(request):
     if not os.path.exists(cover_path):
         return web.Response(status=404)
     return web.FileResponse(cover_path)
+
+@routes.get('/no_cover')
+async def no_cover(request):
+    no_cover_path = os.path.join(output_dir, "NO COVER.png")
+    if not os.path.exists(no_cover_path):
+        return web.Response(status=404)
+    return web.FileResponse(no_cover_path)
+
+@routes.get('/songinfo/NoCover.png')
+async def no_cover_png(request):
+    no_cover_path = os.path.join(output_dir, "NoCover.png")
+    if not os.path.exists(no_cover_path):
+        return web.Response(status=404)
+    return web.FileResponse(no_cover_path)
 
 
 # ЭНДПОИНТ ДЛЯ ОБНОВЛЕНИЯ НАСТРОЕК
@@ -270,6 +366,27 @@ async def serve_html(request):
         return web.FileResponse(file_path)
     return web.Response(status=404, text="Template not found")
 
+@routes.get('/sources')
+async def get_sources(request):
+    """Возвращает список активных источников (плееров)"""
+    try:
+        sessions = await MediaManager.request_async()
+        all_sessions = sessions.get_sessions()
+
+        sources = []
+        for s in all_sessions:
+            try:
+                app_id = s.source_app_user_model_id
+                if app_id and app_id not in sources:
+                    sources.append(app_id)
+            except Exception:
+                continue
+
+        return web.json_response({"sources": sources})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def websocket_handler(request):
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -298,7 +415,10 @@ app.add_routes([
     web.get('/', index),
     web.get('/index.html', index),
     web.get('/cover', cover),
+    web.get('/no_cover', no_cover),
+    web.get('/songinfo/NoCover.png', no_cover_png),
     web.get('/ws', websocket_handler),
+    web.get('/sources', get_sources),
     web.post('/update_config', update_config),
     web.get('/{filename}.html', serve_html),
 ])

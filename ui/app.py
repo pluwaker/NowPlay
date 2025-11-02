@@ -27,7 +27,8 @@ class NowPlayApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("NowPlay Server")
-        self.geometry("900x600")
+        self.geometry("1000x700")
+        self.minsize(800, 600)  # Минимальный размер окна
 
         self.port = None
         self.obs_url = ""
@@ -35,18 +36,43 @@ class NowPlayApp(ctk.CTk):
         self.obs_link = tkinter.StringVar()
 
         # ====== Боковое меню ======
-        self.sidebar = ctk.CTkFrame(self, width=140, corner_radius=0)
+        self.sidebar = ctk.CTkFrame(self, width=160, corner_radius=0)
         self.sidebar.pack(side="left", fill="y", padx=(0, 5))
 
-        self.start_btn = ctk.CTkButton(self.sidebar, text="🚀 START", command=self.show_start)
-        self.settings_btn = ctk.CTkButton(self.sidebar, text="⚙️ SETTINGS", command=self.show_settings)
-        self.info_btn = ctk.CTkButton(self.sidebar, text="ℹ️ INFO", command=self.show_info)
-        self.exit_btn = ctk.CTkButton(self.sidebar, text="❌ EXIT", fg_color="#d9534f", command=self.exit_app)
+        self.start_btn = ctk.CTkButton(
+            self.sidebar, 
+            text="🚀 START", 
+            command=self.show_start,
+            height=40,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.settings_btn = ctk.CTkButton(
+            self.sidebar, 
+            text="⚙️ SETTINGS", 
+            command=self.show_settings,
+            height=40,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.info_btn = ctk.CTkButton(
+            self.sidebar, 
+            text="ℹ️ INFO", 
+            command=self.show_info,
+            height=40,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.exit_btn = ctk.CTkButton(
+            self.sidebar, 
+            text="❌ EXIT", 
+            fg_color="#d9534f", 
+            command=self.exit_app,
+            height=40,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
 
-        self.start_btn.pack(pady=10, fill="x", padx=10)
-        self.settings_btn.pack(pady=10, fill="x", padx=10)
-        self.info_btn.pack(pady=10, fill="x", padx=10)
-        self.exit_btn.pack(side="bottom", pady=10, fill="x", padx=10)
+        self.start_btn.pack(pady=(20, 10), fill="x", padx=15)
+        self.settings_btn.pack(pady=10, fill="x", padx=15)
+        self.info_btn.pack(pady=10, fill="x", padx=15)
+        self.exit_btn.pack(side="bottom", pady=(10, 20), fill="x", padx=15)
 
         # ====== Основное содержимое ======
         self.content = ctk.CTkFrame(self, fg_color="#1e1e1e")
@@ -88,7 +114,7 @@ class NowPlayApp(ctk.CTk):
             self.pages["start"] = StartPage(self.content, self)
 
         self.current_page = self.pages["start"]
-        self.current_page.pack(fill="both", expand=True)
+        self.current_page.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Обновляем кнопки меню
         self.update_menu_buttons("start")
@@ -101,7 +127,7 @@ class NowPlayApp(ctk.CTk):
             self.pages["settings"] = SettingsPage(self.content, self)
 
         self.current_page = self.pages["settings"]
-        self.current_page.pack(fill="both", expand=True)
+        self.current_page.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Обновляем кнопки меню
         self.update_menu_buttons("settings")
@@ -114,7 +140,7 @@ class NowPlayApp(ctk.CTk):
             self.pages["info"] = InfoPage(self.content, self)
 
         self.current_page = self.pages["info"]
-        self.current_page.pack(fill="both", expand=True)
+        self.current_page.pack(fill="both", expand=True, padx=0, pady=0)
 
         # Обновляем кнопки меню
         self.update_menu_buttons("info")

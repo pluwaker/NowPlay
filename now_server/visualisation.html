@@ -11,6 +11,8 @@
             --wave-color: #1db954;
             --accent-color: #1db954;
             --progress-color: #1db954;
+            --progress-color1: #1db954;
+            --progress-color2: #1ed760;
             --progress-bg: #404040;
         }
         body {
@@ -33,25 +35,73 @@
 
         .player-container {
             background: var(--bg-color);
-            backdrop-filter: blur(10px);
             border-radius: 16px;
             width: 280px;
             padding: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
             opacity: 0;
+            overflow: visible; /* Разрешаем выход подсветки за границы */
         }
         .cover-container {
             position: relative;
             width: 100%;
             margin-bottom: 15px;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: visible; /* Разрешаем выход подсветки за границы */
         }
         .album-cover {
-            width: 100%;
-            border-radius: 8px;
             aspect-ratio: 1;
             object-fit: cover;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            display: block;
+            border-radius: 8px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            box-shadow: 0 0 25px rgba(29, 185, 84, 0.8),
+                        0 0 45px rgba(29, 185, 84, 0.6),
+                        0 0 65px rgba(29, 185, 84, 0.4);
+            transition: box-shadow 0.8s ease, opacity 0.6s ease-in-out;
+        }
+        .album-cover.active {
+            opacity: 1;
+            z-index: 3;
+            pointer-events: auto;
+        }
+        .album-cover.inactive {
+            opacity: 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+        .ambient-light {
+            position: absolute;
+            top: -15px;
+            left: -15px;
+            right: -15px;
+            bottom: -15px;
+            border-radius: 8px;
+            z-index: 1; /* Изменено на 1, чтобы было между контейнером (0) и изображениями (2-3) */
+            opacity: 1;
+            pointer-events: none;
+            filter: blur(12px);
+            background: radial-gradient(circle at 50% 20%, 
+                var(--ambient-color, rgba(29, 185, 84, 0.85)) 0%,
+                transparent 65%);
+            animation: ambientPulse 3s ease-in-out infinite;
+            transition: background 0.5s ease;
+        }
+        @keyframes ambientPulse {
+            0%, 100% {
+                opacity: 0.9;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.05);
+            }
         }
         .track-info {
             text-align: center;
@@ -138,18 +188,21 @@
         }
         .progress-bar {
             width: 100%;
-            height: 4px;
-            background: var(--progress-bg);
-            border-radius: 2px;
+            height: 15px;
+            background: var(--progress-color1);
+            border-radius: 3px;
             cursor: pointer;
             position: relative;
+            margin-bottom: 5px;
+            overflow: hidden;
         }
         .progress {
             height: 100%;
-            background: var(--progress-color);
-            border-radius: 2px;
+            background: var(--progress-color2);
+            border-radius: 3px;
             width: 0%;
-            transition: width 0.1s ease;
+            transition: width 0.2s ease;
+            position: relative;
         }
         .progress-time {
             display: flex;
@@ -189,7 +242,9 @@
 <body>
     <div class="player-container" id="player">
         <div class="cover-container">
-            <img class="album-cover" id="cover" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
+            <div class="ambient-light" id="ambientLight"></div>
+            <img class="album-cover active" id="cover1" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
+            <img class="album-cover inactive" id="cover2" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
         </div>
         <div class="track-info">
             <div class="marquee-container" id="title-container">
@@ -217,7 +272,10 @@
 
     <script>
     const player = document.getElementById('player');
-    const cover = document.getElementById('cover');
+    const cover1 = document.getElementById('cover1');
+    const cover2 = document.getElementById('cover2');
+    let currentCover = cover1; // Текущее активное изображение
+    let nextCover = cover2; // Следующее изображение для перехода
     const title = document.getElementById('title');
     const artist = document.getElementById('artist');
     const status = document.getElementById('status');
@@ -255,6 +313,11 @@
     let totalDuration = 0;
     let isPlaying = false;
     let progressInterval;
+    
+    // Переменные для подсветки
+    let currentAmbientColor = null; // Сохраняем текущий цвет свечения (только из изображения обложки)
+    let previousAmbientColor = null; // Предыдущий цвет для плавного перехода
+    let colorTransitionAnimation = null; // Анимация перехода цветов
 
     // ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ДЛИНЫ ТЕКСТА
     function checkTextOverflow(element, container) {
@@ -319,20 +382,699 @@
         }
     }
 
+    // Получение двух доминирующих цветов из изображения
+    function getDominantColors(image) {
+        return new Promise((resolve, reject) => {
+            try {
+                if (!image || !image.complete || image.naturalWidth === 0) {
+                    reject(new Error('Изображение не загружено'));
+                    return;
+                }
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const size = Math.min(200, Math.max(image.naturalWidth, image.naturalHeight));
+                canvas.width = size;
+                canvas.height = size;
+                
+                ctx.drawImage(image, 0, 0, size, size);
+                const imageData = ctx.getImageData(0, 0, size, size);
+                const data = imageData.data;
+                
+                // Группируем похожие цвета для определения доминирующих
+                const colorMap = new Map();
+                
+                // Берем каждый 8-й пиксель для оптимизации
+                for (let i = 0; i < data.length; i += 32) {
+                    const alpha = data[i + 3];
+                    if (alpha > 10) {
+                        const r = data[i];
+                        const g = data[i + 1];
+                        const b = data[i + 2];
+                        
+                        // Округляем цвета для группировки похожих оттенков
+                        const roundedR = Math.round(r / 16) * 16;
+                        const roundedG = Math.round(g / 16) * 16;
+                        const roundedB = Math.round(b / 16) * 16;
+                        const key = `${roundedR},${roundedG},${roundedB}`;
+                        
+                        if (!colorMap.has(key)) {
+                            colorMap.set(key, { r: 0, g: 0, b: 0, count: 0 });
+                        }
+                        const color = colorMap.get(key);
+                        color.r += r;
+                        color.g += g;
+                        color.b += b;
+                        color.count++;
+                    }
+                }
+                
+                if (colorMap.size === 0) {
+                    reject(new Error('Не удалось извлечь данные (нет видимых пикселей)'));
+                    return;
+                }
+                
+                // Преобразуем карту в массив, вычисляем яркость, оттенок и фильтруем темные и серые цвета
+                const colors = Array.from(colorMap.entries()).map(([key, value]) => {
+                    const r = Math.round(value.r / value.count);
+                    const g = Math.round(value.g / value.count);
+                    const b = Math.round(value.b / value.count);
+                    const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+                    const hue = getHue(r, g, b);
+                    return {
+                        r, g, b,
+                        count: value.count,
+                        luminance: luminance,
+                        hue: hue
+                    };
+                });
+                
+                // Фильтруем серые цвета (разница между max и min каналами < 30)
+                const nonGrayColors = colors.filter(c => !isColorGray(c.r, c.g, c.b, 30));
+                
+                // Используем несерые цвета, если их достаточно, иначе все
+                const colorsToFilter = nonGrayColors.length >= 2 ? nonGrayColors : colors;
+                
+                // Фильтруем только светлые цвета (яркость >= 100) для акцентных цветов
+                const lightColors = colorsToFilter.filter(c => c.luminance >= 100);
+                
+                // Если светлых цветов недостаточно, используем цвета с яркостью >= 70 (но не серые)
+                let filteredColors = lightColors.length >= 2 ? lightColors : colorsToFilter.filter(c => c.luminance >= 70 && !isColorGray(c.r, c.g, c.b, 30));
+                
+                // Если все равно недостаточно, используем цвета с яркостью >= 50 (но не серые)
+                if (filteredColors.length < 2) {
+                    filteredColors = colorsToFilter.filter(c => c.luminance >= 50 && !isColorGray(c.r, c.g, c.b, 30));
+                }
+                
+                // Если и их мало, используем все не черные и не серые
+                if (filteredColors.length < 2) {
+                    filteredColors = colorsToFilter.filter(c => c.luminance >= 30 && !isColorGray(c.r, c.g, c.b, 30));
+                }
+                
+                // Если совсем нет подходящих, используем несерые цвета
+                if (filteredColors.length === 0) {
+                    filteredColors = colorsToFilter.length > 0 ? colorsToFilter : colors;
+                }
+                
+                // Сортируем по количеству пикселей (убывание)
+                filteredColors.sort((a, b) => b.count - a.count);
+                
+                // Берем первый доминирующий СВЕТЛЫЙ цвет
+                let firstColor = filteredColors[0];
+                
+                // Предпочитаем светлые цвета (яркость >= 100)
+                const veryLightColors = filteredColors.filter(c => c.luminance >= 100);
+                if (veryLightColors.length > 0) {
+                    firstColor = veryLightColors[0];
+                }
+                
+                // Для второго цвета ищем СВЕТЛЫЙ цвет с ДРУГИМ оттенком
+                let secondColor = filteredColors[1] || filteredColors[0];
+                
+                if (filteredColors.length > 1) {
+                    const firstHue = firstColor.hue;
+                    const minHueDifference = 30; // Минимальная разница в оттенке (градусы)
+                    const minContrast = 120; // Минимальное общее расстояние для хорошего контраста
+                    
+                    // Если первый цвет красный/розовый, второй должен быть из другой части спектра
+                    const isFirstRedPink = isRedOrPink(firstHue);
+                    
+                    // Ищем светлые цвета с другим оттенком
+                    // Если первый цвет красный/розовый, второй НЕ должен быть красным/розовым
+                    let lightColorsWithDifferentHue = filteredColors.filter(c => {
+                        if (c === firstColor) return false;
+                        
+                        // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                        if (isFirstRedPink && isRedOrPink(c.hue)) {
+                            return false;
+                        }
+                        
+                        // Если первый красный/розовый, второй должен быть из противоположной части спектра
+                        if (isFirstRedPink) {
+                            // Требуем минимум 90 градусов разницы для второго цвета
+                            const hueDiff = Math.abs(c.hue - firstHue);
+                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                            if (actualHueDiff < 90) {
+                                return false; // Слишком близко к красному/розовому
+                            }
+                        }
+                        
+                        const hueDiff = Math.abs(c.hue - firstHue);
+                        const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                        
+                        return c.luminance >= 100 && actualHueDiff >= minHueDifference;
+                    });
+                    
+                    if (lightColorsWithDifferentHue.length > 0) {
+                        // Выбираем наиболее контрастный из светлых цветов с другим оттенком
+                        lightColorsWithDifferentHue.sort((a, b) => {
+                            return colorDistance(firstColor, b) - colorDistance(firstColor, a);
+                        });
+                        secondColor = lightColorsWithDifferentHue[0];
+                        console.log('Найден светлый цвет с другим оттенком:', { hue: secondColor.hue, firstHue: firstHue });
+                    } else {
+                        // Если не нашли светлых с другим оттенком, ищем любой светлый цвет с хорошим контрастом
+                        // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                        const lightContrasting = filteredColors.filter(c => {
+                            if (c === firstColor) return false;
+                            
+                            // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                            if (isFirstRedPink && isRedOrPink(c.hue)) {
+                                return false;
+                            }
+                            
+                            // Если первый красный/розовый, второй должен быть из противоположной части спектра
+                            if (isFirstRedPink) {
+                                const hueDiff = Math.abs(c.hue - firstHue);
+                                const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                                if (actualHueDiff < 90) {
+                                    return false; // Слишком близко к красному/розовому
+                                }
+                            }
+                            
+                            const hueDiff = Math.abs(c.hue - firstHue);
+                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                            return c.luminance >= 100 && actualHueDiff >= 15 && colorDistance(firstColor, c) >= minContrast;
+                        });
+                        
+                        if (lightContrasting.length > 0) {
+                            lightContrasting.sort((a, b) => {
+                                return colorDistance(firstColor, b) - colorDistance(firstColor, a);
+                            });
+                            secondColor = lightContrasting[0];
+                            console.log('Найден светлый контрастный цвет');
+                        } else {
+                            // Ищем наиболее контрастный светлый цвет среди всех
+                            // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                            const allLight = filteredColors.filter(c => {
+                                if (c.luminance < 100 || c === firstColor) return false;
+                                // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                                if (isFirstRedPink && isRedOrPink(c.hue)) {
+                                    return false;
+                                }
+                                // Если первый красный/розовый, второй должен быть из противоположной части спектра
+                                if (isFirstRedPink) {
+                                    const hueDiff = Math.abs(c.hue - firstHue);
+                                    const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                                    if (actualHueDiff < 90) {
+                                        return false; // Слишком близко к красному/розовому
+                                    }
+                                }
+                                return true;
+                            });
+                            if (allLight.length > 0) {
+                                allLight.sort((a, b) => {
+                                    return colorDistance(firstColor, b) - colorDistance(firstColor, a);
+                                });
+                                secondColor = allLight[0];
+                                console.log('Выбран наиболее контрастный светлый цвет');
+                            } else {
+                                // В крайнем случае ищем любой цвет с хорошим контрастом (но не красный/розовый если первый красный/розовый)
+                                let bestContrast = 0;
+                                let bestColor = filteredColors[1] || filteredColors[0];
+                                
+                                for (let i = 1; i < Math.min(filteredColors.length, 15); i++) {
+                                    const candidate = filteredColors[i];
+                                    
+                                    // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                                    if (isFirstRedPink && isRedOrPink(candidate.hue)) {
+                                        continue;
+                                    }
+                                    
+                                    // Если первый красный/розовый, второй должен быть из противоположной части спектра
+                                    if (isFirstRedPink) {
+                                        const hueDiff = Math.abs(candidate.hue - firstHue);
+                                        const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                                        if (actualHueDiff < 90) {
+                                            continue; // Слишком близко к красному/розовому
+                                        }
+                                    }
+                                    
+                                    const distance = colorDistance(firstColor, candidate);
+                                    
+                                    if (distance > bestContrast) {
+                                        bestContrast = distance;
+                                        bestColor = candidate;
+                                    }
+                                }
+                                
+                                secondColor = bestColor;
+                                console.log('Выбран наиболее контрастный цвет из доступных');
+                            }
+                        }
+                    }
+                    
+                    // Финальная проверка: убеждаемся, что цвета действительно разные
+                    const finalHueDiff = Math.abs(secondColor.hue - firstHue);
+                    const actualFinalHueDiff = finalHueDiff > 180 ? 360 - finalHueDiff : finalHueDiff;
+                    
+                    if (actualFinalHueDiff < 20 && filteredColors.length > 2) {
+                        // Если оттенки слишком похожи, ищем цвет в другой части спектра
+                        const oppositeHue = (firstHue + 180) % 360;
+                        const colorsNearOpposite = filteredColors.filter(c => {
+                            if (c === firstColor) return false;
+                            
+                            // СТРОГО запрещаем сочетание красного/розового с красным/розовым
+                            if (isFirstRedPink && isRedOrPink(c.hue)) {
+                                return false;
+                            }
+                            
+                            // Если первый красный/розовый, второй должен быть из противоположной части спектра
+                            if (isFirstRedPink) {
+                                const hueDiff = Math.abs(c.hue - firstHue);
+                                const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                                if (actualHueDiff < 90) {
+                                    return false; // Слишком близко к красному/розовому
+                                }
+                            }
+                            
+                            const hueDiff = Math.abs(c.hue - oppositeHue);
+                            const actualDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                            return actualDiff < 60 && c.luminance >= 70;
+                        });
+                        
+                        if (colorsNearOpposite.length > 0) {
+                            colorsNearOpposite.sort((a, b) => b.luminance - a.luminance);
+                            secondColor = colorsNearOpposite[0];
+                            console.log('Выбран цвет с противоположным оттенком для лучшего контраста');
+                        }
+                    }
+                }
+                
+                // Финальная проверка: запрещаем сочетание красного/розового с красным/розовым
+                const isFirstRedPink = isRedOrPink(firstColor.hue);
+                const isSecondRedPink = isRedOrPink(secondColor.hue);
+                
+                if (isFirstRedPink && isSecondRedPink) {
+                    // Если оба цвета красные/розовые, ищем альтернативный второй цвет
+                    const alternativeColors = filteredColors.filter(c => {
+                        if (c === firstColor) return false;
+                        return !isRedOrPink(c.hue);
+                    });
+                    
+                    if (alternativeColors.length > 0) {
+                        // Выбираем наиболее контрастный из не красных/розовых
+                        alternativeColors.sort((a, b) => {
+                            return colorDistance(firstColor, b) - colorDistance(firstColor, a);
+                        });
+                        secondColor = alternativeColors[0];
+                        console.log('Заменен второй цвет - запрещено сочетание красного/розового с красным/розовым');
+                    } else {
+                        // Если нет альтернатив, выбираем цвет с максимальной разницей в оттенке
+                        const nonRedPink = filteredColors.filter(c => {
+                            if (c === firstColor) return false;
+                            const hueDiff = Math.abs(c.hue - firstColor.hue);
+                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
+                            return actualHueDiff > 60; // Минимум 60 градусов разницы
+                        });
+                        
+                        if (nonRedPink.length > 0) {
+                            nonRedPink.sort((a, b) => {
+                                return colorDistance(firstColor, b) - colorDistance(firstColor, a);
+                            });
+                            secondColor = nonRedPink[0];
+                            console.log('Выбран цвет с максимальным отличием от красного/розового');
+                        }
+                    }
+                }
+                
+                console.log('Извлечены два доминирующих цвета:', {firstColor, secondColor, contrast: colorDistance(firstColor, secondColor)});
+                resolve({
+                    first: `rgba(${firstColor.r}, ${firstColor.g}, ${firstColor.b}, 0.85)`,
+                    second: `rgba(${secondColor.r}, ${secondColor.g}, ${secondColor.b}, 0.85)`
+                });
+            } catch (error) {
+                console.error('Ошибка в getDominantColors:', error);
+                reject(error);
+            }
+        });
+    }
+
+    // Получение доминирующего цвета из изображения (для обратной совместимости)
+    function getDominantColor(image) {
+        return getDominantColors(image).then(colors => colors.first);
+    }
+
+    // Осветление цвета (на тон светлее)
+    function lightenColor(color, amount = 30) {
+        const rgb = parseColor(color);
+        const r = Math.min(255, rgb.r + amount);
+        const g = Math.min(255, rgb.g + amount);
+        const b = Math.min(255, rgb.b + amount);
+        return `rgba(${r}, ${g}, ${b}, 0.85)`;
+    }
+
+    // Затемнение цвета (на amount тонов темнее)
+    function darkenColor(color, amount = 30) {
+        const rgb = parseColor(color);
+        const r = Math.max(0, rgb.r - amount);
+        const g = Math.max(0, rgb.g - amount);
+        const b = Math.max(0, rgb.b - amount);
+        return `rgba(${r}, ${g}, ${b}, 1)`;
+    }
+
+    // Снижение насыщенности цвета (делает цвет мягче, менее пестрым)
+    // factor: 0.0 = полностью серый, 1.0 = исходный цвет (0.5 = средняя десатурация)
+    function desaturateColor(color, factor = 0.5) {
+        const rgb = parseColor(color);
+        // Вычисляем яркость для серого компонента
+        const luminance = Math.round(0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
+        // Смешиваем исходный цвет с серым цветом той же яркости
+        const r = Math.round(rgb.r * factor + luminance * (1 - factor));
+        const g = Math.round(rgb.g * factor + luminance * (1 - factor));
+        const b = Math.round(rgb.b * factor + luminance * (1 - factor));
+        return `rgba(${r}, ${g}, ${b}, 1)`;
+    }
+
+    // Проверка, является ли цвет темным (яркость < порога)
+    function isColorDark(color, threshold = 128) {
+        const rgb = parseColor(color);
+        // Формула относительной яркости (luminance)
+        const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
+        return luminance < threshold;
+    }
+
+    // Проверка, является ли цвет серым (все каналы RGB близки друг к другу)
+    function isColorGray(r, g, b, threshold = 30) {
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+        return delta < threshold;
+    }
+
+    // Проверка, является ли цвет красным или розовым
+    function isRedOrPink(hue) {
+        // Красный: 0° - 50° и 320° - 360°
+        // Розовый: 280° - 320°
+        // Итого: 280° - 50° (включая переход через 360°) - расширенный диапазон
+        return (hue >= 280 && hue <= 360) || (hue >= 0 && hue <= 50);
+    }
+
+    // Вычисление оттенка (hue) в градусах (0-360)
+    function getHue(r, g, b) {
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+        
+        if (delta === 0) return 0; // Серый цвет
+        
+        let hue = 0;
+        if (max === r) {
+            hue = ((g - b) / delta) % 6;
+        } else if (max === g) {
+            hue = (b - r) / delta + 2;
+        } else {
+            hue = (r - g) / delta + 4;
+        }
+        
+        hue = Math.round(hue * 60);
+        if (hue < 0) hue += 360;
+        return hue;
+    }
+
+    // Вычисление цветового расстояния (Delta E) между двумя цветами
+    function colorDistance(color1, color2) {
+        const rgb1 = typeof color1 === 'object' ? color1 : parseColor(color1);
+        const rgb2 = typeof color2 === 'object' ? color2 : parseColor(color2);
+        
+        // Используем евклидово расстояние в RGB пространстве
+        const dr = rgb1.r - rgb2.r;
+        const dg = rgb1.g - rgb2.g;
+        const db = rgb1.b - rgb2.b;
+        
+        // Также учитываем разницу в яркости для лучшего контраста
+        const lum1 = 0.299 * rgb1.r + 0.587 * rgb1.g + 0.114 * rgb1.b;
+        const lum2 = 0.299 * rgb2.r + 0.587 * rgb2.g + 0.114 * rgb2.b;
+        const dlum = Math.abs(lum1 - lum2);
+        
+        // Вычисляем разницу в оттенке (hue difference)
+        const hue1 = getHue(rgb1.r, rgb1.g, rgb1.b);
+        const hue2 = getHue(rgb2.r, rgb2.g, rgb2.b);
+        let hueDiff = Math.abs(hue1 - hue2);
+        if (hueDiff > 180) hueDiff = 360 - hueDiff; // Берем меньшую дугу
+        
+        // Комбинированное расстояние с большим весом для разницы в оттенке
+        return Math.sqrt(dr * dr + dg * dg + db * db) + dlum * 2 + hueDiff * 3;
+    }
+
+    // Обеспечивает светлый цвет (если цвет темный, делает его светлым)
+    function ensureLightColor(color, minLuminance = 180) {
+        const rgb = parseColor(color);
+        const currentLuminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
+        
+        if (currentLuminance < minLuminance) {
+            // Если цвет темный, осветляем его до минимальной яркости
+            const scale = minLuminance / (currentLuminance || 1);
+            const r = Math.min(255, Math.round(rgb.r * scale));
+            const g = Math.min(255, Math.round(rgb.g * scale));
+            const b = Math.min(255, Math.round(rgb.b * scale));
+            return `rgba(${r}, ${g}, ${b}, 0.85)`;
+        }
+        
+        return color;
+    }
+
+    // Парсинг цвета в RGB
+    function parseColor(color) {
+        let r, g, b;
+        
+        if (color.startsWith('rgba(')) {
+            const rgb = color.replace('rgba(', '').replace(')', '').split(',');
+            r = parseInt(rgb[0].trim());
+            g = parseInt(rgb[1].trim());
+            b = parseInt(rgb[2].trim());
+        } else if (color.startsWith('#')) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+            if (result) {
+                r = parseInt(result[1], 16);
+                g = parseInt(result[2], 16);
+                b = parseInt(result[3], 16);
+            } else {
+                r = 29; g = 185; b = 84;
+            }
+        } else {
+            r = 29; g = 185; b = 84;
+        }
+        
+        return { r, g, b };
+    }
+
+    // Плавный переход между двумя цветами
+    function transitionAmbientLight(fromColor, toColor, duration = 800) {
+        // Останавливаем предыдущую анимацию, если она есть
+        if (colorTransitionAnimation) {
+            cancelAnimationFrame(colorTransitionAnimation);
+        }
+        
+        const fromRGB = parseColor(fromColor);
+        const toRGB = parseColor(toColor);
+        
+        const startTime = performance.now();
+        const deltaR = toRGB.r - fromRGB.r;
+        const deltaG = toRGB.g - fromRGB.g;
+        const deltaB = toRGB.b - fromRGB.b;
+        
+        function animate(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing функция для плавного перехода
+            const easeProgress = progress < 0.5 
+                ? 2 * progress * progress 
+                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+            
+            const currentR = Math.round(fromRGB.r + deltaR * easeProgress);
+            const currentG = Math.round(fromRGB.g + deltaG * easeProgress);
+            const currentB = Math.round(fromRGB.b + deltaB * easeProgress);
+            
+            const colorString = `rgba(${currentR}, ${currentG}, ${currentB}, 0.85)`;
+            
+            // Проверяем, включена ли подсветка
+            if (currentConfig.ambient_light_enabled === false) {
+                return;
+            }
+            
+            // Применяем цвет
+            document.documentElement.style.setProperty('--ambient-color', colorString);
+            
+            // Применяем тень к обоим изображениям
+            if (cover1) {
+                cover1.style.boxShadow = `
+                    0 0 25px rgba(${currentR}, ${currentG}, ${currentB}, 0.8),
+                    0 0 45px rgba(${currentR}, ${currentG}, ${currentB}, 0.6),
+                    0 0 65px rgba(${currentR}, ${currentG}, ${currentB}, 0.4)
+                `;
+            }
+            if (cover2) {
+                cover2.style.boxShadow = `
+                    0 0 25px rgba(${currentR}, ${currentG}, ${currentB}, 0.8),
+                    0 0 45px rgba(${currentR}, ${currentG}, ${currentB}, 0.6),
+                    0 0 65px rgba(${currentR}, ${currentG}, ${currentB}, 0.4)
+                `;
+            }
+            
+            if (progress < 1) {
+                colorTransitionAnimation = requestAnimationFrame(animate);
+            } else {
+                colorTransitionAnimation = null;
+                // Сохраняем финальный цвет
+                currentAmbientColor = colorString;
+                previousAmbientColor = colorString;
+            }
+        }
+        
+        colorTransitionAnimation = requestAnimationFrame(animate);
+    }
+
+    // Обновление ambient light цвета
+    function updateAmbientLight(color, useTransition = true) {
+        // Проверяем, включена ли подсветка
+        if (currentConfig.ambient_light_enabled === false) {
+            return; // Не применяем подсветку, если она выключена
+        }
+        
+        const targetRGB = parseColor(color);
+        const targetColor = `rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.85)`;
+        
+        // Если нужно использовать переход и есть предыдущий цвет
+        if (useTransition && previousAmbientColor && previousAmbientColor !== targetColor) {
+            transitionAmbientLight(previousAmbientColor, targetColor);
+        } else {
+            // Мгновенное применение цвета
+            currentAmbientColor = targetColor;
+            previousAmbientColor = targetColor;
+            document.documentElement.style.setProperty('--ambient-color', targetColor);
+            
+            // Применяем тень к обоим изображениям
+            if (cover1) {
+                cover1.style.transition = 'box-shadow 0.8s ease';
+                cover1.style.boxShadow = `
+                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
+                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
+                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
+                `;
+            }
+            if (cover2) {
+                cover2.style.transition = 'box-shadow 0.8s ease';
+                cover2.style.boxShadow = `
+                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
+                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
+                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
+                `;
+            }
+        }
+    }
+
+    // Применение автоматических цветов из изображения
+    function applyAutoColors(colors) {
+        if (!currentConfig.auto_colors_enabled) {
+            return; // Автоматические цвета выключены
+        }
+
+        // Первый цвет (осветленный) для обложки
+        const coverColor = lightenColor(colors.first);
+        updateAmbientLight(coverColor, false);
+
+        // Первый цвет для подложки
+        // Проверяем яркость и затемняем, если слишком светлый
+        const firstColorRGB = parseColor(colors.first);
+        let firstLuminance = (0.299 * firstColorRGB.r + 0.587 * firstColorRGB.g + 0.114 * firstColorRGB.b);
+        
+        // Если первый цвет слишком темный для подложки, используем второй цвет
+        let bgColorToUse = colors.first;
+        if (firstLuminance < 50) {
+            bgColorToUse = colors.second;
+            const secondColorRGB = parseColor(colors.second);
+            firstLuminance = (0.299 * secondColorRGB.r + 0.587 * secondColorRGB.g + 0.114 * secondColorRGB.b);
+            console.log('Первый цвет слишком темный для подложки, используем второй цвет');
+        }
+        
+        let bgColorRGB = parseColor(bgColorToUse);
+        // Если цвет слишком светлый (яркость > 120), затемняем его
+        if (firstLuminance > 120) {
+            // Чем светлее, тем больше затемняем (до 100 единиц максимум)
+            const darkenAmount = Math.min(100, Math.round((firstLuminance - 120) * 0.8));
+            bgColorRGB = parseColor(darkenColor(bgColorToUse, darkenAmount));
+            console.log(`Цвет подложки слишком светлый (${firstLuminance}), затемняем на ${darkenAmount}`);
+        } else if (firstLuminance > 80) {
+            // Если яркость 80-120, немного затемняем
+            bgColorRGB = parseColor(darkenColor(bgColorToUse, 40));
+        }
+        // Если яркость <= 80, оставляем как есть или слегка затемняем
+        else if (firstLuminance > 50) {
+            bgColorRGB = parseColor(darkenColor(bgColorToUse, 20));
+        }
+        
+        // Снижаем насыщенность цвета подложки, чтобы он был мягче (менее пестрым)
+        // factor 0.5 делает цвет в два раза менее насыщенным (более мягким)
+        const desaturatedBg = desaturateColor(`rgba(${bgColorRGB.r}, ${bgColorRGB.g}, ${bgColorRGB.b}, 1)`, 0.5);
+        document.documentElement.style.setProperty('--bg-color', desaturatedBg);
+
+        // Второй цвет (осветленный) для текста, визуализатора и прогресс-бара
+        // Убеждаемся, что цвет светлый для хорошей читаемости
+        let accentColorLight = lightenColor(colors.second);
+        accentColorLight = ensureLightColor(accentColorLight, 180);
+        const accentRGB = parseColor(accentColorLight);
+        
+        // Применяем второй цвет для текста, визуализатора и прогресс-бара
+        document.documentElement.style.setProperty('--text-color', `rgba(${accentRGB.r}, ${accentRGB.g}, ${accentRGB.b}, 1)`);
+        document.documentElement.style.setProperty('--wave-color', accentColorLight);
+        document.documentElement.style.setProperty('--accent-color', accentColorLight);
+        document.documentElement.style.setProperty('--progress-color2', accentColorLight);
+        
+        // Исполнитель использует тот же цвет, что и название трека
+        // В visualisation.html имя исполнителя использует --text-color с opacity через CSS
+        const artistElement = document.getElementById('artist');
+        if (artistElement) {
+            artistElement.style.color = ''; // Сбрасываем, чтобы использовать CSS переменную --text-color
+        }
+        
+        // Второй цвет затемненный на 2 тона для фона прогресс-бара
+        const progressBgColor = darkenColor(colors.second, 60); // 2 тона = 60 единиц
+        document.documentElement.style.setProperty('--progress-color1', progressBgColor);
+        document.documentElement.style.setProperty('--progress-bg', progressBgColor);
+    }
+
     // ФУНКЦИЯ ПРИМЕНЕНИЯ НАСТРОЕК
     function applyConfig(config) {
         if (config) {
             currentConfig = config;
             console.log('Применяем настройки:', config);
 
-            document.documentElement.style.setProperty('--bg-color', config.main_color || 'rgba(30, 30, 30, 1)');
-            document.documentElement.style.setProperty('--accent-color', config.accent_color || '#1db954');
-            document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
-            document.documentElement.style.setProperty('--wave-color', config.wave_color || '#1db954');
-            document.documentElement.style.setProperty('--progress-color', config.progress_color || '#1db954');
-            document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
+            // Применяем цвета только если автоматические цвета выключены
+            if (!config.auto_colors_enabled) {
+                document.documentElement.style.setProperty('--bg-color', config.main_color || 'rgba(30, 30, 30, 1)');
+                document.documentElement.style.setProperty('--accent-color', config.accent_color || '#1db954');
+                document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
+                document.documentElement.style.setProperty('--wave-color', config.wave_color || '#1db954');
+                document.documentElement.style.setProperty('--progress-color', config.progress_color || '#1db954');
+                document.documentElement.style.setProperty('--progress-color1', config.progress_color1 || config.progress_color || config.accent_color || config.wave_color || '#1db954');
+                document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
+                document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
+            }
+            
             document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
-            document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end')
+            document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end');
+            
+            // Управление подсветкой
+            const ambientLightEnabled = config.ambient_light_enabled !== false; // По умолчанию включена
+            const ambientLight = document.getElementById('ambientLight');
+            if (ambientLight) {
+                ambientLight.style.display = ambientLightEnabled ? 'block' : 'none';
+            }
+            
+            // Если подсветка выключена, убираем тени с обложек
+            if (!ambientLightEnabled) {
+                if (cover1) {
+                    cover1.style.boxShadow = 'none';
+                }
+                if (cover2) {
+                    cover2.style.boxShadow = 'none';
+                }
+            }
+            
+            // Подсветка применяется только на основе цвета из изображения обложки
+            // Акцентный цвет больше не используется для подсветки
 
             setTimeout(() => {
                 checkTextOverflow(title, titleContainer);
@@ -401,7 +1143,13 @@
         if (data.status === 'inactive') {
             title.textContent = "Плеер не обнаружен";
             artist.textContent = "Запустите медиа-плеер";
-            cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+UGxheWVyIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+            const defaultCoverSrc = '/songinfo/NoCover.png';
+            if (currentCover) {
+                currentCover.src = defaultCoverSrc;
+            }
+            if (nextCover && nextCover !== currentCover) {
+                nextCover.src = defaultCoverSrc;
+            }
             stopVisualizer();
             stopProgressUpdate();
 
@@ -443,11 +1191,86 @@
 
         updateProgress();
 
+        // Обновляем обложку
         if (data.cover_url) {
-            cover.src = data.cover_url + `&t=${Date.now()}`;
-            cover.onerror = () => {
-                cover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+            // Сохраняем текущий цвет как предыдущий перед переключением трека
+            // Это нужно для плавного перехода от одного цвета к другому
+            if (currentAmbientColor) {
+                previousAmbientColor = currentAmbientColor;
+            }
+            
+            // Определяем, какое изображение будет следующим для загрузки
+            const loadingCover = nextCover;
+            const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg');
+            
+            // Убеждаемся, что loadingCover скрыт перед загрузкой нового изображения
+            // Это предотвращает показ "no cover" во время загрузки
+            loadingCover.classList.remove('active');
+            loadingCover.classList.add('inactive');
+            
+            // Сбрасываем обработчики для чистого состояния
+            loadingCover.onload = null;
+            loadingCover.onerror = null;
+            
+            loadingCover.onload = function() {
+                // Извлекаем два доминирующих цвета из изображения
+                getDominantColors(loadingCover)
+                    .then(colors => {
+                        console.log('Применяем цвета из изображения:', colors);
+                        
+                        // Если включены автоматические цвета, применяем их
+                        if (currentConfig.auto_colors_enabled) {
+                            applyAutoColors(colors);
+                        } else {
+                            // Используем первый цвет для подсветки обложки с плавным переходом
+                            updateAmbientLight(colors.first, !isFirstLoad);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Не удалось извлечь цвета из изображения:', error);
+                        // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
+                        getDominantColor(loadingCover)
+                            .then(color => {
+                                if (!currentConfig.auto_colors_enabled) {
+                                    updateAmbientLight(color, !isFirstLoad);
+                                }
+                            })
+                            .catch(() => {
+                                // Оставляем предыдущий цвет подсветки
+                            });
+                    });
+                
+                // Плавный переход между обложками (crossfade)
+                // Если это первая загрузка, просто делаем изображение видимым
+                if (isFirstLoad) {
+                    loadingCover.classList.remove('inactive');
+                    loadingCover.classList.add('active');
+                    if (currentCover !== loadingCover) {
+                        currentCover.classList.remove('active');
+                        currentCover.classList.add('inactive');
+                    }
+                    currentCover = loadingCover;
+                    nextCover = (loadingCover === cover1) ? cover2 : cover1;
+                } else {
+                    loadingCover.classList.remove('inactive');
+                    loadingCover.classList.add('active');
+                    currentCover.classList.remove('active');
+                    currentCover.classList.add('inactive');
+                    
+                    // Переключаем указатели для следующего перехода
+                    const temp = currentCover;
+                    currentCover = nextCover;
+                    nextCover = temp;
+                }
             };
+            
+            loadingCover.onerror = () => {
+                loadingCover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+                // При ошибке загрузки обложки не применяем подсветку
+                // Акцентный цвет больше не используется
+            };
+            
+            loadingCover.src = data.cover_url + `&t=${Date.now()}`;
         }
 
         player.style.opacity = 1;

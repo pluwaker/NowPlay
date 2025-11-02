@@ -73,6 +73,10 @@
             <div class="template-name">🎯 Модульный</div>
             <div class="template-desc">3 отдельные подложки</div>
         </div>
+        <div class="template-card" onclick="loadTemplate('visualisation_horizontal.html')">
+            <div class="template-name">📻 Классический горизонталньый</div>
+            <div class="template-desc">Единая подложка, компактный дизайн, а ещё и горизонтальный</div>
+        </div>
 
         <div class="current-template" id="currentTemplate">
             Выберите шаблон
@@ -109,7 +113,8 @@
             const names = {
                 'visualisation.html': 'Классический',
                 'visualisation_var2.html': 'Модерн',
-                'visualisation_var3.html': 'Модульный'
+                'visualisation_var3.html': 'Модульный',
+                'visualisation_horizontal': 'Классический горизонтальный'
             };
             return names[filename] || filename;
         }

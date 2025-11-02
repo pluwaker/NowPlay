@@ -4,6 +4,10 @@ from tkinter import colorchooser, messagebox
 import tkinter
 import sys
 import os
+import urllib.request
+import urllib.error
+import json
+import threading
 
 # Добавляем путь к корневой папке для импорта config_manager
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -278,6 +282,57 @@ class SettingsPage(ctk.CTkFrame):
         # Инициализируем состояние кнопок
         self.update_color_buttons_state()
 
+        # Выбор источника медиа
+        source_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        source_frame.pack(fill="x", padx=20, pady=(10, 10))
+
+        source_label_frame = ctk.CTkFrame(source_frame, fg_color="transparent")
+        source_label_frame.pack(fill="x", pady=(0, 5))
+
+        ctk.CTkLabel(
+            source_label_frame,
+            text="Источник медиа",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        refresh_source_btn = ctk.CTkButton(
+            source_label_frame,
+            text="Обновить",
+            font=ctk.CTkFont(size=11),
+            width=80,
+            height=25,
+            fg_color="#444444",
+            hover_color="#555555",
+            command=self.refresh_sources
+        )
+        refresh_source_btn.pack(side="right")
+
+        self.source_var = ctk.StringVar(
+            value=self.config_data.get("selected_media_source", "auto")
+        )
+
+        self.source_menu = ctk.CTkOptionMenu(
+            source_frame,
+            values=["Автоматически"],
+            variable=self.source_var,
+            command=self.change_source,
+            width=200
+        )
+        self.source_menu.pack(side="left", padx=(0, 10))
+
+        self.source_display_label = ctk.CTkLabel(
+            source_frame,
+            text="(Загрузка...)",
+            font=ctk.CTkFont(size=11),
+            text_color="#888888"
+        )
+        self.source_display_label.pack(side="left")
+
+        # Инициализируем список источников
+        self.sources_map = {}  # id -> name
+        self.refresh_sources()
+
         # Изменение позиции
         position_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
         position_frame.pack(fill="x", padx=20, pady=(10, 15))
@@ -387,6 +442,137 @@ class SettingsPage(ctk.CTkFrame):
             self.url_frame.pack_forget()
             self.copy_btn.configure(state="disabled")
 
+    def get_server_url(self):
+        """Получает URL сервера"""
+        url = self.controller.obs_link.get()
+        if url:
+            # Извлекаем базовый URL (без index.html)
+            base_url = url.replace('/index.html', '').replace('/visualisation.html', '').strip('/')
+            return base_url
+        return None
+
+    def refresh_sources(self):
+        """Обновляет список источников медиа"""
+        server_url = self.get_server_url()
+        if not server_url:
+            self.source_display_label.configure(text="(Сервер не запущен)")
+            return
+
+        def fetch_sources():
+            try:
+                req = urllib.request.Request(f"{server_url}/sources")
+                req.add_header('User-Agent', 'NowPlay/1.0')
+                with urllib.request.urlopen(req, timeout=2) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read().decode('utf-8'))
+                        sources = data.get("sources", [])
+                        
+                        # Обновляем UI в главном потоке
+                        self.after(0, self.update_sources_ui, sources)
+                    else:
+                        self.after(0, lambda: self.source_display_label.configure(
+                            text="(Ошибка загрузки)")
+                        )
+            except urllib.error.URLError:
+                self.after(0, lambda: self.source_display_label.configure(
+                    text="(Сервер не доступен)")
+            )
+            except Exception as e:
+                self.after(0, lambda: self.source_display_label.configure(
+                    text=f"(Ошибка: {str(e)[:30]})")
+                )
+
+        # Запускаем в отдельном потоке
+        thread = threading.Thread(target=fetch_sources, daemon=True)
+        thread.start()
+        self.source_display_label.configure(text="(Загрузка...)")
+
+    def update_sources_ui(self, sources):
+        """Обновляет UI со списком источников"""
+        # Маппинг: display_name -> source_id
+        self.sources_map = {}
+        source_names = ["Автоматически"]
+        
+        for source in sources:
+            source_id = source.get("id", "")
+            source_name = source.get("name", source_id)
+            if source_id:
+                # Создаем читаемое имя
+                if len(source_id) > 30:
+                    display_name = f"{source_name} ({source_id[:20]}...)"
+                else:
+                    display_name = f"{source_name} ({source_id})"
+                
+                source_names.append(display_name)
+                self.sources_map[display_name] = source_id
+
+        # Обновляем меню
+        self.source_menu.configure(values=source_names)
+        
+        # Восстанавливаем выбранное значение или ставим по умолчанию
+        selected_source_id = self.config_data.get("selected_media_source", "auto")
+        if selected_source_id == "auto" or selected_source_id == "":
+            self.source_var.set("Автоматически")
+        else:
+            # Ищем соответствующий display_name
+            found = False
+            for display_name, mapped_source_id in self.sources_map.items():
+                if mapped_source_id == selected_source_id:
+                    self.source_var.set(display_name)
+                    found = True
+                    break
+            if not found:
+                self.source_var.set("Автоматически")
+                self.config_data["selected_media_source"] = "auto"
+
+        # Обновляем подпись
+        count = len(sources)
+        self.source_display_label.configure(
+            text=f"({count} источников)" if count > 0 else "(Нет источников)"
+        )
+
+    def change_source(self, choice):
+        """Меняет выбранный источник медиа"""
+        if choice == "Автоматически":
+            self.config_data["selected_media_source"] = "auto"
+        else:
+            # Получаем ID источника по display_name
+            source_id = self.sources_map.get(choice, "auto")
+            self.config_data["selected_media_source"] = source_id
+        
+        # Обновляем конфигурацию на сервере
+        self.update_server_config()
+
+    def update_server_config(self):
+        """Обновляет конфигурацию источника на сервере"""
+        server_url = self.get_server_url()
+        if not server_url:
+            return
+
+        def send_update():
+            try:
+                selected_source = self.config_data.get("selected_media_source", "auto")
+                data = json.dumps({"selected_media_source": selected_source}).encode('utf-8')
+                req = urllib.request.Request(
+                    f"{server_url}/update_config",
+                    data=data,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                req.add_header('User-Agent', 'NowPlay/1.0')
+                with urllib.request.urlopen(req, timeout=2) as response:
+                    if response.status == 200:
+                        print(f"✅ Конфигурация источника обновлена на сервере: {selected_source}")
+            except urllib.error.URLError:
+                # Сервер не запущен - это нормально
+                pass
+            except Exception as e:
+                print(f"⚠️ Не удалось обновить конфигурацию на сервере: {e}")
+
+        # Запускаем в отдельном потоке
+        thread = threading.Thread(target=send_update, daemon=True)
+        thread.start()
+
     def change_position(self, choice):
         """Меняет позицию отображения"""
         if choice in self.positions_map:
@@ -466,6 +652,9 @@ class SettingsPage(ctk.CTkFrame):
             success = config_manager.save_config(self.config_data)
 
             if success:
+                # Обновляем конфигурацию на сервере
+                self.update_server_config()
+                
                 # УВЕДОМЛЯЕМ СЕРВЕР ОБ ИЗМЕНЕНИИ НАСТРОЕК
                 if hasattr(self.controller, 'config_updated'):
                     self.controller.config_updated(self.config_data)

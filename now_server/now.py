@@ -22,6 +22,11 @@ from winsdk.windows.storage.streams import DataReader
 # Загрузка конфигурации через единый менеджер
 current_config = config_manager.load_config()
 
+def reload_config():
+    """Перезагружает конфигурацию из файла"""
+    global current_config
+    current_config = config_manager.load_config()
+
 # Определяем пути
 PROJECT_ROOT = Path(__file__).parent.parent
 output_dir = PROJECT_ROOT / "songinfo"
@@ -92,6 +97,24 @@ async def notify_cover_replaced(artist, title):
 cover_fetcher.on_cover_replaced = notify_cover_replaced
 
 
+async def get_session_by_source(sessions, selected_source):
+    """Получает сессию по выбранному источнику"""
+    if not selected_source or selected_source == "" or selected_source == "auto":
+        # Автоматический выбор - текущая сессия
+        return sessions.get_current_session()
+    
+    # Ищем сессию с указанным source_app_user_model_id
+    all_sessions = sessions.get_sessions()
+    for session in all_sessions:
+        try:
+            app_id = session.source_app_user_model_id
+            if app_id == selected_source:
+                return session
+        except Exception:
+            continue
+    
+    return None
+
 async def media_monitor():
     last_artist = ""
     last_title = ""
@@ -103,8 +126,13 @@ async def media_monitor():
 
     while True:
         try:
+            # Перезагружаем конфигурацию для получения актуального источника
+            reload_config()
+            selected_source = current_config.get("selected_media_source", "")
+            
             sessions = await MediaManager.request_async()
-            current_session = sessions.get_current_session()
+            current_session = await get_session_by_source(sessions, selected_source)
+            
             if current_session:
                 media_info = await current_session.try_get_media_properties_async()
                 new_artist = media_info.artist or "Unknown Artist"
@@ -368,17 +396,44 @@ async def serve_html(request):
 
 @routes.get('/sources')
 async def get_sources(request):
-    """Возвращает список активных источников (плееров)"""
+    """Возвращает список активных источников (плееров) с их именами"""
     try:
         sessions = await MediaManager.request_async()
         all_sessions = sessions.get_sessions()
 
         sources = []
+        seen_ids = set()
+        
         for s in all_sessions:
             try:
                 app_id = s.source_app_user_model_id
-                if app_id and app_id not in sources:
-                    sources.append(app_id)
+                if app_id and app_id not in seen_ids:
+                    seen_ids.add(app_id)
+                    # Пытаемся получить читаемое имя приложения
+                    display_name = app_id  # По умолчанию используем ID
+                    try:
+                        media_info = await s.try_get_media_properties_async()
+                        # Пробуем разные способы получить имя
+                        if hasattr(media_info, 'display_source') and media_info.display_source:
+                            display_name = media_info.display_source
+                        elif hasattr(media_info, 'app_display_name') and media_info.app_display_name:
+                            display_name = media_info.app_display_name
+                        # Упрощаем длинные ID (убираем версии и лишние части)
+                        if display_name == app_id and len(app_id) > 40:
+                            # Пытаемся извлечь имя приложения из ID
+                            parts = app_id.split('!')
+                            if len(parts) > 0:
+                                app_part = parts[0].split('.')
+                                if len(app_part) > 0:
+                                    display_name = app_part[-1]
+                    except Exception as e:
+                        # Если не удалось получить имя, используем ID
+                        pass
+                    
+                    sources.append({
+                        "id": app_id,
+                        "name": display_name
+                    })
             except Exception:
                 continue
 

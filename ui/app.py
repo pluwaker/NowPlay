@@ -1,12 +1,11 @@
 # ui/app.py
 import customtkinter as ctk
-import multiprocessing
+import threading
 from tkinter import messagebox
 import socket
 import os
 import tkinter
 from now_server.now import run_server
-import requests
 
 def find_free_port(start_port=8080, max_port=9000):
     for port in range(start_port, max_port):
@@ -19,8 +18,7 @@ def find_free_port(start_port=8080, max_port=9000):
     raise OSError("Не удалось найти свободный порт в диапазоне 8080–9000")
 
 
-def start_server_process(port):
-    run_server(port=port)
+# Функция больше не нужна - сервер запускается напрямую в потоке
 
 
 class NowPlayApp(ctk.CTk):
@@ -166,12 +164,22 @@ class NowPlayApp(ctk.CTk):
             self.port = find_free_port()
             self.obs_url = f"http://localhost:{self.port}/index.html"
 
-            self.server_process = multiprocessing.Process(
-                target=start_server_process,
-                args=(self.port,),
-                daemon=True
-            )
-            self.server_process.start()
+            # Используем threading вместо multiprocessing для экономии памяти
+            # Запускаем сервер в отдельном потоке с новым event loop
+            import asyncio
+            def run_server_thread():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    run_server(port=self.port)
+                except Exception as e:
+                    print(f"Ошибка сервера: {e}")
+                finally:
+                    loop.close()
+            
+            self.server_thread = threading.Thread(target=run_server_thread, daemon=True)
+            self.server_thread.start()
+            self.server_process = self.server_thread  # Совместимость с существующим кодом
 
             self.obs_link.set(self.obs_url)
             print(f"✅ Сервер запущен на {self.obs_url}")
@@ -183,19 +191,22 @@ class NowPlayApp(ctk.CTk):
 
     def stop_server(self):
         """Останавливает сервер (вызывается из StartPage)"""
-        if self.server_process and self.server_process.is_alive():
-            self.server_process.terminate()
-            self.server_process.join()
+        # Для остановки asyncio сервера нужно закрыть event loop
+        # Это сложно сделать безопасно, поэтому оставляем daemon=True
+        # Сервер остановится автоматически при закрытии приложения
+        if hasattr(self, 'server_thread') and self.server_thread and self.server_thread.is_alive():
+            # Сервер остановится при закрытии приложения (daemon=True)
+            self.server_thread = None
             self.server_process = None
             self.obs_url = ""
             self.obs_link.set("")
-            print("🛑 Сервер остановлен")
+            print("🛑 Сервер будет остановлен при закрытии приложения")
             return True
         return False
 
     def is_server_running(self):
         """Проверяет запущен ли сервер"""
-        return self.server_process and self.server_process.is_alive()
+        return hasattr(self, 'server_thread') and self.server_thread and self.server_thread.is_alive()
 
     def exit_app(self):
         self.stop_server()

@@ -1,4 +1,3 @@
-import multiprocessing
 import sys
 import os
 
@@ -14,10 +13,9 @@ from ui.app import NowPlayApp
 
 
 def main():
-    multiprocessing.freeze_support()
-    print("🚀 Starting NowPlayApp...")  # Добавь эту строку
+    print("🚀 Starting NowPlayApp...")
     app = NowPlayApp()
-    print("✅ NowPlayApp started successfully")  # И эту
+    print("✅ NowPlayApp started successfully")
     app.mainloop()
 
 

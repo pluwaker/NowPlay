@@ -145,18 +145,18 @@
 
         .progress-bar {
             width: 100%;
-            height: 6px;
-            background: var(--progress-bg);
+            height: 15px;
+            background: var(--progress-color1);
             border-radius: 3px;
             cursor: pointer;
             position: relative;
-            margin-bottom: 8px;
+            margin-bottom: 5px;
             overflow: hidden;
         }
 
         .progress {
             height: 100%;
-            background: linear-gradient(90deg, var(--progress-color1), var(--progress-color2));
+            background: var(--progress-color2);
             border-radius: 3px;
             width: 0%;
             transition: width 0.2s ease;
@@ -206,9 +206,44 @@
             background: linear-gradient(to top, var(--accent-color), var(--wave-color));
             width: 5px;
             border-radius: 3px 3px 0 0;
-            transition: all 0.15s ease-out;
             flex: 1;
+            transform-origin: bottom;
+            height: 45px;
+            opacity: 0.3;
+            /* CSS анимация вместо JS - легче для CPU */
+            animation: wave-animation 1.5s ease-in-out infinite;
+            animation-play-state: paused; /* По умолчанию остановлено */
         }
+
+        .visualizer.enabled .visualizer-bar {
+            animation-play-state: running;
+        }
+
+        /* CSS анимация визуализатора - хаотичное движение */
+        @keyframes wave-animation {
+            0%, 100% {
+                transform: scaleY(0.067);
+                opacity: 0.3;
+            }
+            20% {
+                transform: scaleY(var(--bar-max-1, 0.6));
+                opacity: var(--bar-opacity-1, 0.8);
+            }
+            40% {
+                transform: scaleY(var(--bar-max-2, 0.3));
+                opacity: var(--bar-opacity-2, 0.5);
+            }
+            60% {
+                transform: scaleY(var(--bar-max-3, 0.9));
+                opacity: var(--bar-opacity-3, 1.0);
+            }
+            80% {
+                transform: scaleY(var(--bar-max-4, 0.4));
+                opacity: var(--bar-opacity-4, 0.6);
+            }
+        }
+
+        /* Задержки и длительности устанавливаются JavaScript для хаотичности */
 
         .status-section {
             display: none;
@@ -271,7 +306,7 @@
 
         /* Состояние паузы */
         .paused .visualizer-bar {
-            opacity: 0.3;
+            animation-play-state: paused !important;
         }
 
         .paused .album-cover {
@@ -332,7 +367,6 @@
     let ws;
     let reconnectTimer;
     const RECONNECT_DELAY = 3000;
-    let animationFrame;
     let currentConfig = {};
     let currentPosition = 0;
     let totalDuration = 0;
@@ -344,18 +378,58 @@
     let previousAmbientColor = null; // Предыдущий цвет для плавного перехода
     let colorTransitionAnimation = null; // Анимация перехода цветов
 
-    // Создание визуализатора
+    // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
     function createVisualizer() {
         visualizer.innerHTML = '';
         for (let i = 0; i < 14; i++) {
             const bar = document.createElement('div');
             bar.className = 'visualizer-bar';
-            bar.dataset.phase = (Math.random() * Math.PI * 2).toFixed(2); // 🟢 случайная фаза
-            bar.style.height = '3px';
+            
+            // Случайная задержка от 0 до 2 секунд для хаотичности
+            const randomDelay = Math.random() * 2;
+            // Случайная длительность от 0.8 до 2 секунд для разной скорости
+            const randomDuration = 0.8 + Math.random() * 1.2;
+            
+            // Случайные максимальные высоты для каждой точки анимации (0.3 - 1.0)
+            const max1 = 0.3 + Math.random() * 0.7;
+            const max2 = 0.3 + Math.random() * 0.7;
+            const max3 = 0.3 + Math.random() * 0.7;
+            const max4 = 0.3 + Math.random() * 0.7;
+            
+            // Случайная прозрачность для каждой точки
+            const opacity1 = 0.5 + Math.random() * 0.5;
+            const opacity2 = 0.4 + Math.random() * 0.4;
+            const opacity3 = 0.6 + Math.random() * 0.4;
+            const opacity4 = 0.5 + Math.random() * 0.3;
+            
+            bar.style.animationDelay = `${randomDelay.toFixed(2)}s`;
+            bar.style.animationDuration = `${randomDuration.toFixed(2)}s`;
+            bar.style.setProperty('--bar-max-1', max1.toFixed(3));
+            bar.style.setProperty('--bar-max-2', max2.toFixed(3));
+            bar.style.setProperty('--bar-max-3', max3.toFixed(3));
+            bar.style.setProperty('--bar-max-4', max4.toFixed(3));
+            bar.style.setProperty('--bar-opacity-1', opacity1.toFixed(2));
+            bar.style.setProperty('--bar-opacity-2', opacity2.toFixed(2));
+            bar.style.setProperty('--bar-opacity-3', opacity3.toFixed(2));
+            bar.style.setProperty('--bar-opacity-4', opacity4.toFixed(2));
+            
             visualizer.appendChild(bar);
         }
     }
 
+    // Запуск/остановка CSS анимации визуализатора (0% CPU нагрузка!)
+    function animateVisualizer() {
+        if (!currentConfig || currentConfig.wave_enabled !== false) {
+            visualizer.classList.add('enabled');
+        } else {
+            stopVisualizer();
+        }
+    }
+
+    // Остановка анимации (CSS анимация управляется через класс)
+    function stopVisualizer() {
+        visualizer.classList.remove('enabled');
+    }
 
     // Форматирование времени
     function formatTime(seconds) {
@@ -1049,48 +1123,8 @@
         document.documentElement.style.setProperty('--progress-bg', progressBgColor);
     }
 
-    // Анимация визуализатора
-    function animateVisualizer() {
-        if (!currentConfig.wave_enabled) {
-            stopVisualizer();
-            return;
-        }
-
-        const bars = document.querySelectorAll('.visualizer-bar');
-        const time = performance.now() * 0.005; // медленнее и стабильнее, чем Date.now()
-
-        bars.forEach((bar, index) => {
-            const offset = index * 0.3;
-            const baseHeight = 3;
-            const maxHeight = 45;
-
-            // Медленнее и мягче "дышит" — с фазовым смещением
-            const phase = parseFloat(bar.dataset.phase);
-            const wave = Math.sin(time + offset + phase) * Math.cos(time * 0.7 + phase);
-            const targetHeight = baseHeight + Math.abs(wave) * (maxHeight - baseHeight);
-
-            // Интерполяция с плавным откликом (в духе inertia)
-            const currentHeight = parseFloat(bar.style.height) || baseHeight;
-            const newHeight = currentHeight + (targetHeight - currentHeight) * 0.06; // меньше шаг = мягче
-
-            // Применяем сглаживание по прозрачности
-            const opacity = 0.25 + (newHeight / maxHeight) * 0.75;
-
-            bar.style.height = `${newHeight.toFixed(1)}px`;
-            bar.style.opacity = opacity.toFixed(2);
-        });
-
-        animationFrame = requestAnimationFrame(animateVisualizer);
-    }
-
-    function stopVisualizer() {
-        cancelAnimationFrame(animationFrame);
-        const bars = document.querySelectorAll('.visualizer-bar');
-        bars.forEach(bar => {
-            bar.style.height = '3px';
-            bar.style.opacity = '0.3';
-        });
-    }
+    // Запуск/остановка CSS анимации визуализатора (0% CPU нагрузка!)
+    // animateVisualizer, stopVisualizer - теперь в common.js
 
     // Обновление статуса подключения (ТОЛЬКО для сообщений о подключении)
     function setStatus(text, isConnected = false) {

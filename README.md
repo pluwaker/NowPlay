@@ -305,8 +305,8 @@ NowPlay/
 Если у вас есть вопросы или предложения:
 - Создайте [Issue](../../issues) на GitHub
 - Или свяжитесь с разработчиком напрямую:
-telegram: @nekonechno
-discord: pluwaker
+- telegram: @nekonechno
+- discord: pluwaker
 
 
 ---

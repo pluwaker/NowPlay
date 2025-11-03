@@ -76,7 +76,7 @@
 
 1. **Клонируйте репозиторий:**
    ```bash
-   git clone https://github.com/ваш-username/NowPlay.git
+   git clone https://github.com/pluwaker/NowPlay.git
    cd NowPlay
    ```
 

@@ -543,16 +543,26 @@ class SettingsPage(ctk.CTkFrame):
         # Обновляем конфигурацию на сервере
         self.update_server_config()
 
-    def update_server_config(self):
-        """Обновляет конфигурацию источника на сервере"""
+    def update_server_config(self, config_update=None):
+        """Обновляет конфигурацию на сервере"""
         server_url = self.get_server_url()
         if not server_url:
             return
 
         def send_update():
             try:
-                selected_source = self.config_data.get("selected_media_source", "auto")
-                data = json.dumps({"selected_media_source": selected_source}).encode('utf-8')
+                # Если передан config_update, отправляем его, иначе отправляем текущую конфигурацию
+                if config_update:
+                    data_to_send = config_update
+                else:
+                    # Отправляем только настройки, которые должны применяться сразу
+                    data_to_send = {
+                        "selected_media_source": self.config_data.get("selected_media_source", "auto"),
+                        "justify_content": self.config_data.get("justify_content", "flex-end"),
+                        "align_items": self.config_data.get("align_items", "flex-end")
+                    }
+                
+                data = json.dumps(data_to_send).encode('utf-8')
                 req = urllib.request.Request(
                     f"{server_url}/update_config",
                     data=data,
@@ -562,7 +572,7 @@ class SettingsPage(ctk.CTkFrame):
                 req.add_header('User-Agent', 'NowPlay/1.0')
                 with urllib.request.urlopen(req, timeout=2) as response:
                     if response.status == 200:
-                        print(f"✅ Конфигурация источника обновлена на сервере: {selected_source}")
+                        print(f"✅ Конфигурация обновлена на сервере")
             except urllib.error.URLError:
                 # Сервер не запущен - это нормально
                 pass
@@ -580,6 +590,14 @@ class SettingsPage(ctk.CTkFrame):
             self.config_data["position"] = choice
             self.config_data["justify_content"] = justify
             self.config_data["align_items"] = align
+            # Сразу сохраняем и применяем изменения
+            config_manager.save_config(self.config_data)
+            # Отправляем настройки позиционирования на сервер
+            self.update_server_config({
+                "justify_content": justify,
+                "align_items": align,
+                "position": choice
+            })
 
     def change_color(self, color_type):
         """Изменяет цвет"""

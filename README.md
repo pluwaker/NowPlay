@@ -305,7 +305,7 @@ NowPlay/
 Если у вас есть вопросы или предложения:
 - Создайте [Issue](../../issues) на GitHub
 - Или свяжитесь с разработчиком напрямую:
-- [![Telegram](<img width="512" height="512" alt="free-icon-telegram-2111646" src="https://github.com/user-attachments/assets/ae16efe3-9dc3-458e-a28f-fc560e37f819" />)]
+[![Telegram](<img width="512" height="512" alt="free-icon-telegram-2111646" src="https://github.com/user-attachments/assets/ae16efe3-9dc3-458e-a28f-fc560e37f819" />)]
 
 
 ---

@@ -377,6 +377,8 @@
     let currentAmbientColor = null; // Сохраняем текущий цвет свечения (только из изображения обложки)
     let previousAmbientColor = null; // Предыдущий цвет для плавного перехода
     let colorTransitionAnimation = null; // Анимация перехода цветов
+    let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
+    let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
 
     // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
     function createVisualizer() {
@@ -1143,6 +1145,7 @@
     // Применение конфигурации
     function applyConfig(config) {
         if (config) {
+            const wasAutoColorsEnabled = currentConfig.auto_colors_enabled;
             currentConfig = config;
 
             // Применяем цвета только если автоматические цвета выключены
@@ -1156,6 +1159,35 @@
                 document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
                 document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#535353');
                 document.documentElement.style.setProperty('--wave-color', config.wave_color || config.accent_color || '#1db954');
+            } else {
+                // Если автоматические цвета включены и только что были включены (были выключены)
+                // Пересчитываем цвета из текущей обложки
+                if (!wasAutoColorsEnabled && config.auto_colors_enabled) {
+                    // Проверяем, есть ли загруженная обложка
+                    const activeCover = currentCover && currentCover.src && currentCover.complete && currentCover.naturalWidth > 0 ? currentCover : null;
+                    if (activeCover && !activeCover.src.includes('NoCover') && !activeCover.src.includes('/no_cover')) {
+                        console.log('Автоматические цвета включены, пересчитываем цвета из текущей обложки');
+                        // Пересчитываем цвета из текущей обложки
+                        getDominantColors(activeCover)
+                            .then(colors => {
+                                console.log('Применяем автоматические цвета из текущей обложки:', colors);
+                                applyAutoColors(colors);
+                            })
+                            .catch(error => {
+                                console.error('Не удалось извлечь цвета из обложки:', error);
+                                // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
+                                getDominantColor(activeCover)
+                                    .then(color => {
+                                        if (currentConfig.auto_colors_enabled) {
+                                            updateAmbientLight(color, false);
+                                        }
+                                    })
+                                    .catch(() => {
+                                        // Оставляем предыдущий цвет подсветки
+                                    });
+                            });
+                    }
+                }
             }
             document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
             document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end');
@@ -1197,29 +1229,63 @@
 
     // Обновление данных плеера
     function updatePlayer(data) {
+        const messageTimestamp = Date.now();
+        
         if (data.status === 'inactive') {
-            title.textContent = "Не воспроизводится";
-            artist.textContent = "Запустите медиа-плеер";
-            const defaultCoverSrc = '/songinfo/NoCover.png';
-            if (currentCover) {
-                currentCover.src = defaultCoverSrc;
+            // Защита от устаревших inactive сообщений после быстрого переключения треков
+            if (lastActiveTimestamp > 0 && (messageTimestamp - lastActiveTimestamp) < 2000) {
+                console.log('Игнорируем устаревшее inactive сообщение после активного трека');
+                return;
             }
-            if (nextCover && nextCover !== currentCover) {
-                nextCover.src = defaultCoverSrc;
+            
+            // Отменяем предыдущий таймер, если он был
+            if (noCoverTimeout) {
+                clearTimeout(noCoverTimeout);
+                noCoverTimeout = null;
             }
-            stopVisualizer();
-            stopProgressUpdate();
+            
+            // Задержка перед показом NoCover.png (даем время новому треку загрузиться)
+            noCoverTimeout = setTimeout(() => {
+                // Проверяем еще раз, возможно, за это время пришел новый трек
+                if (lastActiveTimestamp > 0 && (Date.now() - lastActiveTimestamp) < 3000) {
+                    console.log('Новый трек загрузился, отменяем показ NoCover');
+                    return;
+                }
+                
+                title.textContent = "Не воспроизводится";
+                artist.textContent = "Запустите медиа-плеер";
+                const defaultCoverSrc = '/songinfo/NoCover.png';
+                if (currentCover) {
+                    currentCover.src = defaultCoverSrc;
+                }
+                if (nextCover && nextCover !== currentCover) {
+                    nextCover.src = defaultCoverSrc;
+                }
+                stopVisualizer();
+                stopProgressUpdate();
 
-            currentPosition = 0;
-            totalDuration = 0;
-            isPlaying = false;
-            updateProgress();
+                currentPosition = 0;
+                totalDuration = 0;
+                isPlaying = false;
+                updateProgress();
 
-            player.classList.add('paused');
-            // При неактивном плеере показываем статус
-            setStatus("Плеер не обнаружен");
-            document.querySelector('.status-section').style.display = 'block';
+                player.classList.add('paused');
+                // При неактивном плеере показываем статус
+                setStatus("Плеер не обнаружен");
+                document.querySelector('.status-section').style.display = 'block';
+                lastActiveTimestamp = 0;
+                noCoverTimeout = null;
+            }, 1500); // Задержка 1.5 секунды перед показом NoCover
             return;
+        }
+
+        // Обновляем timestamp при активном сообщении
+        lastActiveTimestamp = messageTimestamp;
+        
+        // Отменяем таймер показа NoCover, если активный трек пришел
+        if (noCoverTimeout) {
+            clearTimeout(noCoverTimeout);
+            noCoverTimeout = null;
         }
 
         document.querySelector('.status-section').style.display = 'none';

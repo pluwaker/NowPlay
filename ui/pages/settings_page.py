@@ -1,6 +1,6 @@
 # ui/pages/settings_page.py
 import customtkinter as ctk
-from tkinter import colorchooser, messagebox
+from tkinter import messagebox
 import tkinter
 import sys
 import os
@@ -8,10 +8,291 @@ import urllib.request
 import urllib.error
 import json
 import threading
+import colorsys
 
 # Добавляем путь к корневой папке для импорта config_manager
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from config_manager import config_manager
+
+
+class ModernColorPicker(ctk.CTkToplevel):
+    """Современный виджет выбора цвета"""
+    
+    def __init__(self, parent, initial_color="#ffffff", callback=None):
+        super().__init__(parent)
+        self.callback = callback
+        self.result = None
+        
+        # Парсим начальный цвет
+        self.r, self.g, self.b = self.hex_to_rgb(initial_color)
+        self.h, self.s, self.v = colorsys.rgb_to_hsv(self.r/255, self.g/255, self.b/255)
+        
+        self.title("Выбор цвета")
+        self.geometry("500x400")
+        self.configure(fg_color="#1e1e1e")
+        self.resizable(False, False)
+        
+        # Центрируем окно
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() // 2) - (500 // 2)
+        y = (self.winfo_screenheight() // 2) - (400 // 2)
+        self.geometry(f"500x550+{x}+{y}")
+        
+        self.create_widgets()
+        
+        # Блокируем родительское окно
+        self.transient(parent)
+        self.grab_set()
+        
+    def hex_to_rgb(self, hex_color):
+        """Конвертирует hex в RGB"""
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    
+    def rgb_to_hex(self, r, g, b):
+        """Конвертирует RGB в hex"""
+        return f"#{int(r):02x}{int(g):02x}{int(b):02x}"
+    
+    def create_widgets(self):
+        """Создает виджеты выбора цвета"""
+        # Основной контейнер
+        main_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=10)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Цветовой круг (цветовой тон)
+        hue_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        hue_frame.pack(pady=(20, 10), padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            hue_frame,
+            text="Цветовой тон",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff"
+        ).pack(side="left")
+        
+        self.hue_slider = ctk.CTkSlider(
+            hue_frame,
+            from_=0,
+            to=360,
+            number_of_steps=360,
+            command=self.update_hue,
+            width=300
+        )
+        self.hue_slider.set(self.h * 360)
+        self.hue_slider.pack(side="right", padx=10)
+        
+        # Насыщенность
+        saturation_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        saturation_frame.pack(pady=10, padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            saturation_frame,
+            text="Насыщенность",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff"
+        ).pack(side="left")
+        
+        self.saturation_slider = ctk.CTkSlider(
+            saturation_frame,
+            from_=0,
+            to=100,
+            number_of_steps=100,
+            command=self.update_saturation,
+            width=300
+        )
+        self.saturation_slider.set(self.s * 100)
+        self.saturation_slider.pack(side="right", padx=10)
+        
+        # Яркость
+        brightness_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        brightness_frame.pack(pady=10, padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            brightness_frame,
+            text="Яркость",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff"
+        ).pack(side="left")
+        
+        self.brightness_slider = ctk.CTkSlider(
+            brightness_frame,
+            from_=0,
+            to=100,
+            number_of_steps=100,
+            command=self.update_brightness,
+            width=300
+        )
+        self.brightness_slider.set(self.v * 100)
+        self.brightness_slider.pack(side="right", padx=10)
+        
+        # Превью цвета
+        preview_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        preview_frame.pack(pady=20, padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            preview_frame,
+            text="Предпросмотр:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff"
+        ).pack(side="left")
+        
+        self.color_preview = ctk.CTkFrame(
+            preview_frame,
+            width=100,
+            height=50,
+            corner_radius=5,
+            fg_color=self.rgb_to_hex(self.r, self.g, self.b)
+        )
+        self.color_preview.pack(side="right", padx=10)
+        
+        # Hex код
+        hex_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        hex_frame.pack(pady=10, padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            hex_frame,
+            text="HEX:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff"
+        ).pack(side="left")
+        
+        self.hex_entry = ctk.CTkEntry(
+            hex_frame,
+            width=100,
+            font=ctk.CTkFont(family="Consolas", size=12),
+            fg_color="#1e1e1e",
+            border_color="#555555"
+        )
+        self.hex_entry.insert(0, self.rgb_to_hex(self.r, self.g, self.b).upper())
+        self.hex_entry.bind("<Return>", self.hex_entry_changed)
+        self.hex_entry.pack(side="right", padx=10)
+        
+        # Быстрые цвета (предустановленные)
+        presets_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        presets_frame.pack(pady=10, padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            presets_frame,
+            text="Быстрый выбор:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ffffff"
+        ).pack(side="left")
+        
+        presets_container = ctk.CTkFrame(presets_frame, fg_color="transparent")
+        presets_container.pack(side="right", padx=10)
+        
+        preset_colors = [
+            "#1db954", "#1ed760", "#ffffff", "#b3b3b3",
+            "#ff0000", "#00ff00", "#0000ff", "#ffff00",
+            "#ff00ff", "#00ffff", "#ffa500", "#800080"
+        ]
+        
+        for i, color in enumerate(preset_colors):
+            btn = ctk.CTkButton(
+                presets_container,
+                text="",
+                width=30,
+                height=30,
+                fg_color=color,
+                hover_color=color,
+                command=lambda c=color: self.set_preset_color(c)
+            )
+            btn.grid(row=i // 4, column=i % 4, padx=2, pady=2)
+        
+        # Кнопки
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(pady=20, padx=20, fill="x")
+        
+        cancel_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Отмена",
+            fg_color="#444444",
+            hover_color="#555555",
+            command=self.cancel,
+            width=100
+        )
+        cancel_btn.pack(side="left", padx=5)
+        
+        ok_btn = ctk.CTkButton(
+            buttons_frame,
+            text="ОК",
+            fg_color="#1db954",
+            hover_color="#1aa34a",
+            command=self.ok,
+            width=100
+        )
+        ok_btn.pack(side="right", padx=5)
+    
+    def update_hue(self, value):
+        """Обновляет цветовой тон"""
+        self.h = float(value) / 360
+        self.update_color()
+    
+    def update_saturation(self, value):
+        """Обновляет насыщенность"""
+        self.s = float(value) / 100
+        self.update_color()
+    
+    def update_brightness(self, value):
+        """Обновляет яркость"""
+        self.v = float(value) / 100
+        self.update_color()
+    
+    def update_color(self):
+        """Обновляет цвет на основе HSV"""
+        self.r, self.g, self.b = colorsys.hsv_to_rgb(self.h, self.s, self.v)
+        self.r = int(self.r * 255)
+        self.g = int(self.g * 255)
+        self.b = int(self.b * 255)
+        
+        hex_color = self.rgb_to_hex(self.r, self.g, self.b)
+        self.color_preview.configure(fg_color=hex_color)
+        self.hex_entry.delete(0, tkinter.END)
+        self.hex_entry.insert(0, hex_color.upper())
+    
+    def hex_entry_changed(self, event=None):
+        """Обработка изменения hex кода"""
+        try:
+            hex_color = self.hex_entry.get().strip()
+            if not hex_color.startswith('#'):
+                hex_color = '#' + hex_color
+            if len(hex_color) == 7:
+                self.r, self.g, self.b = self.hex_to_rgb(hex_color)
+                self.h, self.s, self.v = colorsys.rgb_to_hsv(self.r/255, self.g/255, self.b/255)
+                
+                self.hue_slider.set(self.h * 360)
+                self.saturation_slider.set(self.s * 100)
+                self.brightness_slider.set(self.v * 100)
+                
+                self.color_preview.configure(fg_color=hex_color)
+        except:
+            pass
+    
+    def set_preset_color(self, hex_color):
+        """Устанавливает предустановленный цвет"""
+        self.r, self.g, self.b = self.hex_to_rgb(hex_color)
+        self.h, self.s, self.v = colorsys.rgb_to_hsv(self.r/255, self.g/255, self.b/255)
+        
+        self.hue_slider.set(self.h * 360)
+        self.saturation_slider.set(self.s * 100)
+        self.brightness_slider.set(self.v * 100)
+        
+        self.color_preview.configure(fg_color=hex_color)
+        self.hex_entry.delete(0, tkinter.END)
+        self.hex_entry.insert(0, hex_color.upper())
+    
+    def ok(self):
+        """Подтверждение выбора"""
+        hex_color = self.rgb_to_hex(self.r, self.g, self.b)
+        self.result = hex_color
+        if self.callback:
+            self.callback(hex_color)
+        self.destroy()
+    
+    def cancel(self):
+        """Отмена выбора"""
+        self.result = None
+        self.destroy()
 
 
 class SettingsPage(ctk.CTkFrame):
@@ -40,22 +321,35 @@ class SettingsPage(ctk.CTkFrame):
         )
         title_label.pack(pady=(20, 20))
 
-        # Секция "Шаблоны"
-        templates_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
-        templates_frame.pack(pady=(0, 20), padx=30, fill="x")
+        # ========== ОТДЕЛ 1: Автоматические цвета ==========
+        self.auto_colors_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.auto_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
 
-        # Заголовок секции
-        section_title = ctk.CTkLabel(
-            templates_frame,
-            text="Шаблоны",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#ffffff"
+        auto_colors_switch_frame = ctk.CTkFrame(self.auto_colors_frame, fg_color="transparent")
+        auto_colors_switch_frame.pack(fill="x", padx=20, pady=15)
+
+        ctk.CTkLabel(
+            auto_colors_switch_frame,
+            text="Автоматические цвета",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.auto_colors_switch_var = ctk.BooleanVar(value=self.config_data.get("auto_colors_enabled", False))
+        self.auto_colors_switch = ctk.CTkSwitch(
+            auto_colors_switch_frame,
+            text="",
+            variable=self.auto_colors_switch_var,
+            command=self.toggle_auto_colors
         )
-        section_title.pack(pady=(15, 15))
+        self.auto_colors_switch.pack(side="right")
 
-        # Основной цвет (подложка)
-        color_main_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_main_frame.pack(fill="x", padx=20, pady=(0, 10))
+        # ========== ОТДЕЛ 2: Цвет подложки ==========
+        self.background_color_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.background_color_frame.pack(pady=(0, 15), padx=30, fill="x")
+
+        color_main_frame = ctk.CTkFrame(self.background_color_frame, fg_color="transparent")
+        color_main_frame.pack(fill="x", padx=20, pady=15)
 
         ctk.CTkLabel(
             color_main_frame,
@@ -75,32 +369,13 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.main_color_btn.pack(side="right")
 
+        # ========== ОТДЕЛ 3: Цвета названия трека и исполнителя ==========
+        self.text_colors_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.text_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
 
-        # Акцентный цвет
-        color_accent_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_accent_frame.pack(fill="x", padx=20, pady=(0, 10))
-
-        ctk.CTkLabel(
-            color_accent_frame,
-            text="Акцентный цвет (градиент волны)",
-            font=ctk.CTkFont(size=14),
-            text_color="#cccccc"
-        ).pack(side="left")
-
-        self.accent_color_btn = ctk.CTkButton(
-            color_accent_frame,
-            text="",
-            width=40,
-            height=30,
-            fg_color=self.config_data["accent_color"],
-            hover_color=self.config_data["accent_color"],
-            command=lambda: self.change_color("accent_color")
-        )
-        self.accent_color_btn.pack(side="right")
-
-        # Цвет текста
-        color_text_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_text_frame.pack(fill="x", padx=20, pady=(0, 10))
+        # Цвет названия трека
+        color_text_frame = ctk.CTkFrame(self.text_colors_frame, fg_color="transparent")
+        color_text_frame.pack(fill="x", padx=20, pady=(15, 10))
 
         ctk.CTkLabel(
             color_text_frame,
@@ -121,8 +396,8 @@ class SettingsPage(ctk.CTkFrame):
         self.text_color_btn.pack(side="right")
 
         # Цвет имени исполнителя
-        color_artist_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_artist_frame.pack(fill="x", padx=20, pady=(0, 10))
+        color_artist_frame = ctk.CTkFrame(self.text_colors_frame, fg_color="transparent")
+        color_artist_frame.pack(fill="x", padx=20, pady=(0, 15))
 
         ctk.CTkLabel(
             color_artist_frame,
@@ -142,9 +417,13 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.artist_color_btn.pack(side="right")
 
+        # ========== ОТДЕЛ 4: Цвет волны и акцентный цвет ==========
+        self.wave_colors_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.wave_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
+
         # Цвет волны
-        color_wave_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_wave_frame.pack(fill="x", padx=20, pady=(0, 10))
+        color_wave_frame = ctk.CTkFrame(self.wave_colors_frame, fg_color="transparent")
+        color_wave_frame.pack(fill="x", padx=20, pady=(15, 10))
 
         ctk.CTkLabel(
             color_wave_frame,
@@ -164,9 +443,35 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.wave_color_btn.pack(side="right")
 
-        # Градиент прогресс-бара - цвет 1
-        color_progress1_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_progress1_frame.pack(fill="x", padx=20, pady=(0, 5))
+        # Акцентный цвет
+        color_accent_frame = ctk.CTkFrame(self.wave_colors_frame, fg_color="transparent")
+        color_accent_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            color_accent_frame,
+            text="Акцентный цвет (градиент волны)",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.accent_color_btn = ctk.CTkButton(
+            color_accent_frame,
+            text="",
+            width=40,
+            height=30,
+            fg_color=self.config_data["accent_color"],
+            hover_color=self.config_data["accent_color"],
+            command=lambda: self.change_color("accent_color")
+        )
+        self.accent_color_btn.pack(side="right")
+
+        # ========== ОТДЕЛ 5: Цвет прогресс-бара ==========
+        self.progress_colors_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.progress_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
+
+        # Задний фон прогресс-бара
+        color_progress1_frame = ctk.CTkFrame(self.progress_colors_frame, fg_color="transparent")
+        color_progress1_frame.pack(fill="x", padx=20, pady=(15, 10))
 
         ctk.CTkLabel(
             color_progress1_frame,
@@ -186,9 +491,9 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.progress_color1_btn.pack(side="right")
 
-        # Градиент прогресс-бара - цвет 2
-        color_progress2_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        color_progress2_frame.pack(fill="x", padx=20, pady=(0, 10))
+        # Цвет прогресс-бара
+        color_progress2_frame = ctk.CTkFrame(self.progress_colors_frame, fg_color="transparent")
+        color_progress2_frame.pack(fill="x", padx=20, pady=(0, 15))
 
         ctk.CTkLabel(
             color_progress2_frame,
@@ -208,8 +513,32 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.progress_color2_btn.pack(side="right")
 
-        # Волна (переключатель)
-        wave_switch_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
+        # ========== ОТДЕЛ 6: Переключатели ==========
+        self.switches_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.switches_frame.pack(pady=(0, 15), padx=30, fill="x")
+
+        # Подсветка обложки
+        ambient_switch_frame = ctk.CTkFrame(self.switches_frame, fg_color="transparent")
+        ambient_switch_frame.pack(fill="x", padx=20, pady=(15, 10))
+
+        ctk.CTkLabel(
+            ambient_switch_frame,
+            text="Подсветка обложки",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.ambient_switch_var = ctk.BooleanVar(value=self.config_data.get("ambient_light_enabled", True))
+        self.ambient_switch = ctk.CTkSwitch(
+            ambient_switch_frame,
+            text="",
+            variable=self.ambient_switch_var,
+            command=self.toggle_ambient_light
+        )
+        self.ambient_switch.pack(side="right")
+
+        # Волна
+        wave_switch_frame = ctk.CTkFrame(self.switches_frame, fg_color="transparent")
         wave_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
 
         ctk.CTkLabel(
@@ -228,46 +557,6 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.wave_switch.pack(side="right")
 
-        # Подсветка (переключатель)
-        ambient_switch_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        ambient_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
-
-        ctk.CTkLabel(
-            ambient_switch_frame,
-            text="Подсветка обложки",
-            font=ctk.CTkFont(size=14),
-            text_color="#cccccc"
-        ).pack(side="left")
-
-        self.ambient_switch_var = ctk.BooleanVar(value=self.config_data.get("ambient_light_enabled", True))
-        self.ambient_switch = ctk.CTkSwitch(
-            ambient_switch_frame,
-            text="",
-            variable=self.ambient_switch_var,
-            command=self.toggle_ambient_light
-        )
-        self.ambient_switch.pack(side="right")
-
-        # Автоматические цвета (переключатель)
-        auto_colors_switch_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        auto_colors_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
-
-        ctk.CTkLabel(
-            auto_colors_switch_frame,
-            text="Автоматические цвета",
-            font=ctk.CTkFont(size=14),
-            text_color="#cccccc"
-        ).pack(side="left")
-
-        self.auto_colors_switch_var = ctk.BooleanVar(value=self.config_data.get("auto_colors_enabled", False))
-        self.auto_colors_switch = ctk.CTkSwitch(
-            auto_colors_switch_frame,
-            text="",
-            variable=self.auto_colors_switch_var,
-            command=self.toggle_auto_colors
-        )
-        self.auto_colors_switch.pack(side="right")
-
         # Сохраняем список всех кнопок цветов для управления их состоянием
         self.color_buttons = [
             ("main_color", self.main_color_btn),
@@ -282,12 +571,13 @@ class SettingsPage(ctk.CTkFrame):
         # Инициализируем состояние кнопок
         self.update_color_buttons_state()
 
+        # ========== Дополнительные настройки ==========
         # Выбор источника медиа
-        source_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        source_frame.pack(fill="x", padx=20, pady=(10, 10))
+        source_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        source_frame.pack(pady=(0, 15), padx=30, fill="x")
 
         source_label_frame = ctk.CTkFrame(source_frame, fg_color="transparent")
-        source_label_frame.pack(fill="x", pady=(0, 5))
+        source_label_frame.pack(fill="x", padx=20, pady=(15, 10))
 
         ctk.CTkLabel(
             source_label_frame,
@@ -312,8 +602,11 @@ class SettingsPage(ctk.CTkFrame):
             value=self.config_data.get("selected_media_source", "auto")
         )
 
+        source_menu_frame = ctk.CTkFrame(source_frame, fg_color="transparent")
+        source_menu_frame.pack(fill="x", padx=20, pady=(0, 15))
+
         self.source_menu = ctk.CTkOptionMenu(
-            source_frame,
+            source_menu_frame,
             values=["Автоматически"],
             variable=self.source_var,
             command=self.change_source,
@@ -322,7 +615,7 @@ class SettingsPage(ctk.CTkFrame):
         self.source_menu.pack(side="left", padx=(0, 10))
 
         self.source_display_label = ctk.CTkLabel(
-            source_frame,
+            source_menu_frame,
             text="(Загрузка...)",
             font=ctk.CTkFont(size=11),
             text_color="#888888"
@@ -334,11 +627,14 @@ class SettingsPage(ctk.CTkFrame):
         self.refresh_sources()
 
         # Изменение позиции
-        position_frame = ctk.CTkFrame(templates_frame, fg_color="transparent")
-        position_frame.pack(fill="x", padx=20, pady=(10, 15))
+        position_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        position_frame.pack(pady=(0, 15), padx=30, fill="x")
+
+        position_content_frame = ctk.CTkFrame(position_frame, fg_color="transparent")
+        position_content_frame.pack(fill="x", padx=20, pady=15)
 
         ctk.CTkLabel(
-            position_frame,
+            position_content_frame,
             text="Позиционирование",
             font=ctk.CTkFont(size=14),
             text_color="#cccccc"
@@ -357,7 +653,7 @@ class SettingsPage(ctk.CTkFrame):
         )
 
         self.position_menu = ctk.CTkOptionMenu(
-            position_frame,
+            position_content_frame,
             values=list(positions.keys()),
             variable=self.position_var,
             command=self.change_position
@@ -366,23 +662,6 @@ class SettingsPage(ctk.CTkFrame):
 
         self.positions_map = positions  # сохраним для доступа при сохранении
 
-
-        # Разделительная линия
-        separator = ctk.CTkFrame(self.scrollable_frame, height=2, fg_color="#444444")
-        separator.pack(fill="x", padx=30, pady=15)
-
-        # Кнопка сохранения
-        self.save_btn = ctk.CTkButton(
-            self.scrollable_frame,
-            text="Сохранить настройки",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color="#1db954",
-            hover_color="#1aa34a",
-            height=40,
-            width=250,
-            command=self.save_settings
-        )
-        self.save_btn.pack(pady=15)
 
         # Блок с ссылкой (только если сервер запущен)
         self.url_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=8)
@@ -540,6 +819,8 @@ class SettingsPage(ctk.CTkFrame):
             source_id = self.sources_map.get(choice, "auto")
             self.config_data["selected_media_source"] = source_id
         
+        # Автоматическое сохранение
+        self.auto_save_settings()
         # Обновляем конфигурацию на сервере
         self.update_server_config()
 
@@ -590,8 +871,8 @@ class SettingsPage(ctk.CTkFrame):
             self.config_data["position"] = choice
             self.config_data["justify_content"] = justify
             self.config_data["align_items"] = align
-            # Сразу сохраняем и применяем изменения
-            config_manager.save_config(self.config_data)
+            # Автоматическое сохранение
+            self.auto_save_settings()
             # Отправляем настройки позиционирования на сервер
             self.update_server_config({
                 "justify_content": justify,
@@ -610,27 +891,31 @@ class SettingsPage(ctk.CTkFrame):
             return
 
         current_color = self.config_data.get(color_type, self.get_default_color(color_type))
-        color_code = colorchooser.askcolor(
-            title=f"Выберите {color_type}",
-            initialcolor=current_color
-        )[1]
-
-        if color_code:
-            self.config_data[color_type] = color_code
-            if color_type == "main_color":
-                self.main_color_btn.configure(fg_color=color_code, hover_color=color_code)
-            elif color_type == "accent_color":
-                self.accent_color_btn.configure(fg_color=color_code, hover_color=color_code)
-            elif color_type == "text_color":
-                self.text_color_btn.configure(fg_color=color_code, hover_color=color_code)
-            elif color_type == "artist_color":
-                self.artist_color_btn.configure(fg_color=color_code, hover_color=color_code)
-            elif color_type == "wave_color":
-                self.wave_color_btn.configure(fg_color=color_code, hover_color=color_code)
-            elif color_type == "progress_color1":
-                self.progress_color1_btn.configure(fg_color=color_code, hover_color=color_code)
-            elif color_type == "progress_color2":
-                self.progress_color2_btn.configure(fg_color=color_code, hover_color=color_code)
+        
+        def on_color_selected(color_code):
+            if color_code:
+                self.config_data[color_type] = color_code
+                if color_type == "main_color":
+                    self.main_color_btn.configure(fg_color=color_code, hover_color=color_code)
+                elif color_type == "accent_color":
+                    self.accent_color_btn.configure(fg_color=color_code, hover_color=color_code)
+                elif color_type == "text_color":
+                    self.text_color_btn.configure(fg_color=color_code, hover_color=color_code)
+                elif color_type == "artist_color":
+                    self.artist_color_btn.configure(fg_color=color_code, hover_color=color_code)
+                elif color_type == "wave_color":
+                    self.wave_color_btn.configure(fg_color=color_code, hover_color=color_code)
+                elif color_type == "progress_color1":
+                    self.progress_color1_btn.configure(fg_color=color_code, hover_color=color_code)
+                elif color_type == "progress_color2":
+                    self.progress_color2_btn.configure(fg_color=color_code, hover_color=color_code)
+                
+                # Автоматическое сохранение
+                self.auto_save_settings()
+        
+        # Открываем современный выбор цвета
+        color_picker = ModernColorPicker(self, initial_color=current_color, callback=on_color_selected)
+        self.wait_window(color_picker)
 
     def get_default_color(self, color_type):
         """Возвращает цвет по умолчанию"""
@@ -644,31 +929,68 @@ class SettingsPage(ctk.CTkFrame):
     def toggle_wave(self):
         """Переключает визуализатор волны"""
         self.config_data["wave_enabled"] = self.wave_switch_var.get()
+        # Автоматическое сохранение
+        self.auto_save_settings()
 
     def toggle_ambient_light(self):
         """Переключает подсветку обложки"""
         self.config_data["ambient_light_enabled"] = self.ambient_switch_var.get()
+        # Автоматическое сохранение
+        self.auto_save_settings()
 
     def toggle_auto_colors(self):
         """Переключает автоматические цвета"""
         self.config_data["auto_colors_enabled"] = self.auto_colors_switch_var.get()
         self.update_color_buttons_state()
+        # Автоматическое сохранение
+        self.auto_save_settings()
 
     def update_color_buttons_state(self):
         """Обновляет состояние кнопок цветов в зависимости от режима автоматических цветов"""
         auto_enabled = self.config_data.get("auto_colors_enabled", False)
         
+        # Управляем состоянием кнопок и видимостью секций
         for color_type, button in self.color_buttons:
             if auto_enabled:
                 button.configure(state="disabled")
             else:
                 button.configure(state="normal")
+        
+        # Скрываем/показываем секции с настройками цветов
+        if auto_enabled:
+            self.background_color_frame.pack_forget()
+            self.text_colors_frame.pack_forget()
+            self.wave_colors_frame.pack_forget()
+            self.progress_colors_frame.pack_forget()
+        else:
+            # Показываем секции в правильном порядке
+            # Проверяем, скрыты ли они, и показываем если нужно
+            try:
+                # Проверяем, есть ли pack_info (если нет - виджет скрыт)
+                self.background_color_frame.pack_info()
+            except:
+                self.background_color_frame.pack(pady=(0, 15), padx=30, fill="x")
+            
+            try:
+                self.text_colors_frame.pack_info()
+            except:
+                self.text_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
+            
+            try:
+                self.wave_colors_frame.pack_info()
+            except:
+                self.wave_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
+            
+            try:
+                self.progress_colors_frame.pack_info()
+            except:
+                self.progress_colors_frame.pack(pady=(0, 15), padx=30, fill="x")
 
-    def save_settings(self):
-        """Сохраняет настройки"""
+    def auto_save_settings(self):
+        """Автоматически сохраняет настройки без уведомлений"""
         try:
             success = config_manager.save_config(self.config_data)
-
+            
             if success:
                 # Обновляем конфигурацию на сервере
                 self.update_server_config()
@@ -676,16 +998,9 @@ class SettingsPage(ctk.CTkFrame):
                 # УВЕДОМЛЯЕМ СЕРВЕР ОБ ИЗМЕНЕНИИ НАСТРОЕК
                 if hasattr(self.controller, 'config_updated'):
                     self.controller.config_updated(self.config_data)
-
-                messagebox.showinfo(
-                    "✅ Готово",
-                    "Настройки сохранены!\n\n"
-                )
-            else:
-                messagebox.showerror("Ошибка", "Не удалось сохранить настройки")
-
         except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось сохранить настройки: {e}")
+            # Тихая ошибка - не показываем пользователю при каждом изменении
+            print(f"⚠️ Не удалось автоматически сохранить настройки: {e}")
 
     def copy_url(self):
         """Копирует URL в буфер обмена"""

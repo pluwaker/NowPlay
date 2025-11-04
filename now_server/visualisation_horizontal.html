@@ -25,6 +25,7 @@
             justify-content: var(--justify-content);
             align-items: var(--align-items);
             min-height: 100vh;
+            overflow: hidden; /* Предотвращаем прокрутку из-за подсветки */
         }
         
         .main-content {
@@ -49,7 +50,7 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
             opacity: 0;
-            overflow: visible;
+            overflow: visible; /* Как в visualisation_var3_horizontal.html - подсветка должна быть видна */
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -64,12 +65,13 @@
             margin-right: 0;
             gap: 10px;
             flex-shrink: 0;
+            overflow: visible; /* Разрешаем подсветке выходить за границы */
         }
         .cover-wrapper {
             position: relative;
             aspect-ratio: 1;
             border-radius: 8px;
-            overflow: visible;
+            overflow: visible; /* Подсветка должна быть видна */
         }
         .album-cover {
             aspect-ratio: 1;
@@ -135,12 +137,15 @@
             gap: 20px;
             width: 100%;
             align-items: flex-start;
+            overflow: visible; /* Разрешаем подсветке выходить за границы */
         }
         .content-section {
             flex: 1;
             display: flex;
             flex-direction: column;
             min-width: 0;
+            position: relative;
+            z-index: 10; /* Текст должен быть выше подсветки */
         }
         .track-info {
             text-align: left;
@@ -148,6 +153,7 @@
             overflow: hidden;
             position: relative;
             margin-bottom: 10px;
+            z-index: 10; /* Текст должен быть выше подсветки */
         }
         /* Контейнер для бегущей строки */
         .marquee-container {
@@ -159,67 +165,34 @@
             font-size: 32px;
             font-weight: 600;
             margin-bottom: 6px;
-            white-space: nowrap;
+            white-space: normal; /* Изменено с nowrap на normal */
             color: var(--text-color);
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .track-title.marquee {
-            text-overflow: unset;
-            display: inline-block;
-            animation: marquee 15s linear infinite;
+            overflow: hidden; /* Убираем прокрутку текста */
+            text-overflow: ellipsis; /* Многоточие для длинного текста */
+            word-wrap: break-word;
+            max-height: none;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Ограничиваем до 2 строк */
+            -webkit-box-orient: vertical;
+            position: relative;
+            z-index: 10; /* Текст должен быть выше подсветки */
         }
         .artist-name {
             font-size: 32px;
             color: var(--text-color);
             opacity: 0.8;
+            font-weight: 500;
             margin-bottom: 12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .artist-name.marquee {
-            text-overflow: unset;
-            display: inline-block;
-            padding-left: 100%;
-            animation: marquee 15s linear infinite;
-        }
-        @keyframes marquee {
-            0% {
-                transform: translateX(0);
-            }
-            100% {
-                transform: translateX(-100%);
-            }
-        }
-        /* УЛУЧШЕННЫЕ ГРАДИЕНТНЫЕ ПЛАВНЫЕ КРАЯ */
-        .marquee-container::before,
-        .marquee-container::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 30px;
-            z-index: 2;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .marquee-container::before {
-            left: 0;
-            background: linear-gradient(90deg, var(--bg-color) 0%, transparent 100%);
-        }
-        .marquee-container::after {
-            right: 0;
-            background: linear-gradient(90deg, transparent 0%, var(--bg-color) 100%);
-        }
-        .marquee-container.marquee-active::before,
-        .marquee-container.marquee-active::after {
-            opacity: 1;
-        }
-        /* УБИРАЕМ СТАРЫЙ ИНДИКАТОР */
-        .text-length-indicator {
-            display: none;
+            white-space: normal; /* Изменено с nowrap на normal */
+            overflow: hidden; /* Убираем прокрутку текста */
+            text-overflow: ellipsis; /* Многоточие для длинного текста */
+            word-wrap: break-word;
+            max-height: none;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Ограничиваем до 2 строк */
+            -webkit-box-orient: vertical;
+            position: relative;
+            z-index: 10; /* Текст должен быть выше подсветки */
         }
 
         /* ПОЛЗУНОК ПРОГРЕССА */
@@ -374,8 +347,6 @@
     const artist = document.getElementById('artist');
     const status = document.getElementById('status');
     const visualizer = document.getElementById('visualizer');
-    const titleContainer = document.getElementById('title-container');
-    const artistContainer = document.getElementById('artist-container');
 
     const progressBar = document.getElementById('progressBar');
     const progress = document.getElementById('progress');
@@ -395,26 +366,9 @@
     let currentAmbientColor = null;
     let previousAmbientColor = null;
     let colorTransitionAnimation = null;
+    let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
+    let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
 
-    function checkTextOverflow(element, container) {
-        const isOverflowing = element.scrollWidth > container.clientWidth;
-
-        if (isOverflowing) {
-            element.classList.add('marquee');
-            container.classList.add('marquee-active');
-            element.style.transform = '';
-            element.style.paddingLeft = '100%';
-            element.style.animation = 'marquee 15s linear infinite';
-        } else {
-            element.classList.remove('marquee');
-            container.classList.remove('marquee-active');
-            element.style.animation = '';
-            element.style.paddingLeft = '';
-            element.style.transform = '';
-        }
-
-        return isOverflowing;
-    }
 
     function updateProgress() {
         if (totalDuration > 0) {
@@ -936,6 +890,7 @@
 
     function applyConfig(config) {
         if (config) {
+            const wasAutoColorsEnabled = currentConfig.auto_colors_enabled;
             currentConfig = config;
 
             if (!config.auto_colors_enabled) {
@@ -947,6 +902,35 @@
                 document.documentElement.style.setProperty('--progress-color1', config.progress_color1 || config.progress_color || config.accent_color || config.wave_color || '#1db954');
                 document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
                 document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
+            } else {
+                // Если автоматические цвета включены и только что были включены (были выключены)
+                // Пересчитываем цвета из текущей обложки
+                if (!wasAutoColorsEnabled && config.auto_colors_enabled) {
+                    // Проверяем, есть ли загруженная обложка
+                    const activeCover = currentCover && currentCover.src && currentCover.complete && currentCover.naturalWidth > 0 ? currentCover : null;
+                    if (activeCover && !activeCover.src.includes('NoCover') && !activeCover.src.includes('/no_cover')) {
+                        console.log('Автоматические цвета включены, пересчитываем цвета из текущей обложки');
+                        // Пересчитываем цвета из текущей обложки
+                        getDominantColors(activeCover)
+                            .then(colors => {
+                                console.log('Применяем автоматические цвета из текущей обложки:', colors);
+                                applyAutoColors(colors);
+                            })
+                            .catch(error => {
+                                console.error('Не удалось извлечь цвета из обложки:', error);
+                                // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
+                                getDominantColor(activeCover)
+                                    .then(color => {
+                                        if (currentConfig.auto_colors_enabled) {
+                                            updateAmbientLight(color, false);
+                                        }
+                                    })
+                                    .catch(() => {
+                                        // Оставляем предыдущий цвет подсветки
+                                    });
+                            });
+                    }
+                }
             }
             
             document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
@@ -963,10 +947,6 @@
                 if (cover2) cover2.style.boxShadow = 'none';
             }
 
-            setTimeout(() => {
-                checkTextOverflow(title, titleContainer);
-                checkTextOverflow(artist, artistContainer);
-            }, 100);
 
             if (config.wave_enabled) {
                 animateVisualizer();
@@ -1034,29 +1014,56 @@
     }
 
     function updatePlayer(data) {
+        const messageTimestamp = Date.now();
+        
         if (data.status === 'inactive') {
-            title.textContent = "Плеер не обнаружен";
-            artist.textContent = "Запустите медиа-плеер";
-            const defaultCoverSrc = '/songinfo/NoCover.png';
-            if (currentCover) currentCover.src = defaultCoverSrc;
-            if (nextCover && nextCover !== currentCover) nextCover.src = defaultCoverSrc;
-            stopVisualizer();
-            stopProgressUpdate();
+            // Защита от устаревших inactive сообщений после быстрого переключения треков
+            if (lastActiveTimestamp > 0 && (messageTimestamp - lastActiveTimestamp) < 2000) {
+                console.log('Игнорируем устаревшее inactive сообщение после активного трека');
+                return;
+            }
+            
+            // Отменяем предыдущий таймер, если он был
+            if (noCoverTimeout) {
+                clearTimeout(noCoverTimeout);
+                noCoverTimeout = null;
+            }
+            
+            // Задержка перед показом NoCover.png (даем время новому треку загрузиться)
+            noCoverTimeout = setTimeout(() => {
+                // Проверяем еще раз, возможно, за это время пришел новый трек
+                if (lastActiveTimestamp > 0 && (Date.now() - lastActiveTimestamp) < 3000) {
+                    console.log('Новый трек загрузился, отменяем показ NoCover');
+                    return;
+                }
+                
+                title.textContent = "Плеер не обнаружен";
+                artist.textContent = "Запустите медиа-плеер";
+                const defaultCoverSrc = '/songinfo/NoCover.png';
+                if (currentCover) currentCover.src = defaultCoverSrc;
+                if (nextCover && nextCover !== currentCover) nextCover.src = defaultCoverSrc;
+                stopVisualizer();
+                stopProgressUpdate();
 
-            currentPosition = 0;
-            totalDuration = 0;
-            isPlaying = false;
-            updateProgress();
+                currentPosition = 0;
+                totalDuration = 0;
+                isPlaying = false;
+                updateProgress();
 
-            title.classList.remove('marquee');
-            artist.classList.remove('marquee');
-            titleContainer.classList.remove('marquee-active');
-            artistContainer.classList.remove('marquee-active');
+                lastActiveTimestamp = 0;
+                noCoverTimeout = null;
+            }, 1500); // Задержка 1.5 секунды перед показом NoCover
             return;
         }
-
-        resetAnimation(title, titleContainer);
-        resetAnimation(artist, artistContainer);
+        
+        // Обновляем timestamp при активном сообщении
+        lastActiveTimestamp = messageTimestamp;
+        
+        // Отменяем таймер показа NoCover, если активный трек пришел
+        if (noCoverTimeout) {
+            clearTimeout(noCoverTimeout);
+            noCoverTimeout = null;
+        }
 
         title.textContent = data.title || "Неизвестный трек";
         artist.textContent = data.artist || "Неизвестный исполнитель";
@@ -1139,25 +1146,12 @@
         player.style.opacity = 1;
         setStatus("");
 
-        setTimeout(() => {
-            checkTextOverflow(title, titleContainer);
-            checkTextOverflow(artist, artistContainer);
-        }, 100);
 
         if (currentConfig.wave_enabled !== false) {
             animateVisualizer();
         }
     }
 
-    function resetAnimation(element, container) {
-        element.classList.remove('marquee');
-        if (container) container.classList.remove('marquee-active');
-        element.style.animation = 'none';
-        element.style.paddingLeft = '';
-        element.style.transform = '';
-        void element.offsetWidth;
-        element.style.animation = '';
-    }
 
     function goToIndex() {
         const player = document.getElementById('player');
@@ -1226,17 +1220,13 @@
 
     function reconnect() {
         if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(connect, RECONNECT_DELAY);
+        reconnectTimer = setTimeout(connect, RECONNECT_DELAY);      
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         createVisualizer();
         connect();
 
-        window.addEventListener('resize', () => {
-            checkTextOverflow(title, titleContainer);
-            checkTextOverflow(artist, artistContainer);
-        });
 
         progressBar.addEventListener('click', (e) => {
             if (totalDuration > 0) {

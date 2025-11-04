@@ -3,30 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Now Playing</title>
+    <title>Now Playing v3 Horizontal</title>
+    <!-- Google Fonts: Montserrat - стильный популярный шрифт с поддержкой кириллицы -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: rgba(30, 30, 30, 1);
+            --bg-color: rgba(30, 30, 30, 0.95);
             --text-color: #ffffff;
-            --wave-color: #1db954;
             --accent-color: #1db954;
-            --progress-color: #1db954;
+            --secondary-color: #b3b3b3;
             --progress-color1: #1db954;
             --progress-color2: #1ed760;
             --progress-bg: #404040;
         }
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: transparent !important;
-            color: var(--text-color);
+
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Montserrat', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: transparent !important; /* ДЛЯ OBS - ПОЛНАЯ ПРОЗРАЧНОСТЬ */
+            color: var(--text-color);
+            min-height: 100vh;
             display: flex;
             justify-content: var(--justify-content);
             align-items: var(--align-items);
-            min-height: 100vh;
+            padding: 20px;
+            overflow: hidden; /* Убираем прокрутку страницы */
         }
 
+        /* ТЕМНЫЙ ФОН ТОЛЬКО ДЛЯ ПРЕДПРОСМОТРА В БРАУЗЕРЕ */
         @media screen and (min-width: 1024px) {
             body {
                 background: rgba(10, 10, 10, 0.9) !important;
@@ -34,28 +45,46 @@
         }
 
         .player-container {
-            background: var(--bg-color);
-            border-radius: 16px;
-            width: 280px;
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease;
-            opacity: 0;
-            overflow: visible; /* Разрешаем выход подсветки за границы */
-        }
-        .cover-container {
             position: relative;
             width: 100%;
-            margin-bottom: 15px;
-            aspect-ratio: 1;
-            border-radius: 8px;
-            overflow: visible; /* Разрешаем выход подсветки за границы */
+            max-width: 650px; /* Уменьшено с 900px для более узкого виджета */
+            display: flex;
+            flex-direction: column; /* ВЕРТИКАЛЬНАЯ ОБЕРТКА */
+            gap: 5px; /* Расстояние между подложками */
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
         }
+
+        .player-container.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Контейнер для верхней части (обложка + трек) */
+        .top-row {
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+        }
+
+        /* ПОДЛОЖКА 1 - COVER */
+        .cover-section {
+            position: relative;
+            border-radius: 12px;
+            overflow: visible; /* Позволяем подсветке выходить за границы */
+            z-index: 2;
+            width: 200px; /* Размер обложки остается прежним */
+            min-width: 200px; /* Размер обложки остается прежним */
+            aspect-ratio: 1;
+            flex-shrink: 0;
+        }
+
         .album-cover {
             aspect-ratio: 1;
             object-fit: cover;
             display: block;
-            border-radius: 8px;
+            border-radius: 12px; /* Явно указываем border-radius для обрезки изображения */
             position: absolute;
             top: 0;
             left: 0;
@@ -66,24 +95,27 @@
                         0 0 65px rgba(29, 185, 84, 0.4);
             transition: box-shadow 0.8s ease, opacity 0.6s ease-in-out;
         }
+
         .album-cover.active {
             opacity: 1;
             z-index: 3;
             pointer-events: auto;
         }
+
         .album-cover.inactive {
             opacity: 0;
             z-index: 2;
             pointer-events: none;
         }
+
         .ambient-light {
             position: absolute;
             top: -15px;
             left: -15px;
             right: -15px;
             bottom: -15px;
-            border-radius: 8px;
-            z-index: 1; /* Изменено на 1, чтобы было между контейнером (0) и изображениями (2-3) */
+            border-radius: 12px;
+            z-index: 0;
             opacity: 1;
             pointer-events: none;
             filter: blur(12px);
@@ -93,6 +125,7 @@
             animation: ambientPulse 3s ease-in-out infinite;
             transition: background 0.5s ease;
         }
+
         @keyframes ambientPulse {
             0%, 100% {
                 opacity: 0.9;
@@ -103,132 +136,80 @@
                 transform: scale(1.05);
             }
         }
-        .track-info {
-            text-align: center;
-            padding: 0 10px;
-            overflow: hidden;
+
+        /* ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ */
+        .track-section {
             position: relative;
-        }
-        /* Контейнер для бегущей строки */
-        .marquee-container {
-            overflow: hidden;
-            position: relative;
-            width: 100%;
-        }
-        .track-title {
-            font-size: 32px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            white-space: nowrap;
-            color: var(--text-color);
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .track-title.marquee {
-            text-overflow: unset;
-            display: inline-block;
-            animation: marquee 15s linear infinite;
-        }
-        .artist-name {
-            font-size: 32px;
-            color: var(--text-color);
-            opacity: 0.8;
-            margin-bottom: 12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .artist-name.marquee {
-            text-overflow: unset;
-            display: inline-block;
-            padding-left: 100%;
-            animation: marquee 15s linear infinite;
-        }
-        @keyframes marquee {
-            0% {
-                transform: translateX(0);
-            }
-            100% {
-                transform: translateX(-100%);
-            }
-        }
-        /* УЛУЧШЕННЫЕ ГРАДИЕНТНЫЕ ПЛАВНЫЕ КРАЯ */
-        .marquee-container::before,
-        .marquee-container::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 30px;
+            background: var(--bg-color);
+            border-radius: 12px;
+            padding: 15px; /* Уменьшено с 20px для более компактного вида */
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 12px; /* Уменьшено с 15px */
             z-index: 2;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        .marquee-container::before {
-            left: 0;
-            background: linear-gradient(90deg, var(--bg-color) 0%, transparent 100%);
-        }
-        .marquee-container::after {
-            right: 0;
-            background: linear-gradient(90deg, transparent 0%, var(--bg-color) 100%);
-        }
-        .marquee-container.marquee-active::before,
-        .marquee-container.marquee-active::after {
-            opacity: 1;
-        }
-        /* УБИРАЕМ СТАРЫЙ ИНДИКАТОР */
-        .text-length-indicator {
-            display: none;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden; /* Убираем прокрутку текста */
         }
 
-        /* ПОЛЗУНОК ПРОГРЕССА */
-        .progress-container {
-            margin: 15px 0;
-        }
-        .progress-bar {
-            width: 100%;
-            height: 15px;
-            background: var(--progress-color1);
-            border-radius: 3px;
-            cursor: pointer;
-            position: relative;
-            margin-bottom: 5px;
-            overflow: hidden;
-        }
-        .progress {
-            height: 100%;
-            background: var(--progress-color2);
-            border-radius: 3px;
-            width: 0%;
-            transition: width 0.2s ease;
-            position: relative;
-        }
-        .progress-time {
-            display: flex;
-            justify-content: space-between;
-            font-size: 18px;
+        .track-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 6px;
             color: var(--text-color);
-            opacity: 0.7;
-            margin-top: 5px;
+            line-height: 1.3;
+            white-space: normal;
+            overflow: hidden; /* Убираем прокрутку текста */
+            text-overflow: ellipsis; /* Многоточие для длинного текста */
+            word-wrap: break-word;
+            max-height: none;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Ограничиваем до 2 строк */
+            -webkit-box-orient: vertical;
+        }
+
+        .artist-name {
+            font-size: 24px;
+            color: var(--text-color);
+            font-weight: 500;
+            line-height: 1.1;
+            white-space: normal;
+            overflow: hidden; /* Убираем прокрутку текста */
+            text-overflow: ellipsis; /* Многоточие для длинного текста */
+            word-wrap: break-word;
+            max-height: none;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Ограничиваем до 2 строк */
+            -webkit-box-orient: vertical;
+        }
+
+        .track-info {
+            text-align: left;
+            margin-bottom: 50px;
+            min-height: auto;
+            overflow: hidden; /* Убираем прокрутку текста */
+        }
+
+        .visualizer-section {
+            width: 100%;
         }
 
         .visualizer {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
-            height: 40px;
-            margin: 15px 0;
-            gap: 3px;
+            height: 30px;
+            gap: 2px;
         }
 
         .visualizer-bar {
             background: linear-gradient(to top, var(--accent-color), var(--wave-color));
-            width: 5px;
-            border-radius: 3px 3px 0 0;
+            width: 4px;
+            border-radius: 2px 2px 0 0;
             flex: 1;
             transform-origin: bottom;
-            height: 45px;
+            height: 55px;
             opacity: 0.3;
             /* CSS анимация вместо JS - легче для CPU */
             animation: wave-animation 1.5s ease-in-out infinite;
@@ -242,7 +223,7 @@
         /* CSS анимация визуализатора - хаотичное движение */
         @keyframes wave-animation {
             0%, 100% {
-                transform: scaleY(0.067);
+                transform: scaleY(0.1);
                 opacity: 0.3;
             }
             20% {
@@ -263,49 +244,169 @@
             }
         }
 
-        /* Задержки и длительности устанавливаются JavaScript для хаотичности */
+        /* ПОДЛОЖКА 3 - ПРОГРЕСС БАР (под двумя верхними подложками) */
+        .progress-section {
+            position: relative;
+            background: var(--bg-color);
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            z-index: 2;
+            width: 100%;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 15px;
+            background: var(--progress-color1);
+            border-radius: 3px;
+            cursor: pointer;
+            position: relative;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            background: var(--progress-color2);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.2s ease;
+            position: relative;
+        }
+
+        .progress::after {
+            content: '';
+            position: absolute;
+            right: -3px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 10px;
+            height: 10px;
+            background: var(--text-color);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .progress-bar:hover .progress::after {
+            opacity: 1;
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            color: var(--secondary-color);
+            font-weight: 500;
+        }
+
+        .status-section {
+            text-align: center;
+            height: 18px;
+            display: none;
+        }
 
         .status {
-            font-size: 11px;
-            color: var(--text-color);
+            font-size: 10px;
+            color: var(--secondary-color);
+            opacity: 0.7;
+            font-weight: 500;
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 768px) {
+            .player-container {
+                max-width: 350px;
+            }
+
+            .top-row {
+                flex-direction: column;
+            }
+
+            .cover-section {
+                width: 100%;
+            }
+
+            .track-title {
+                font-size: 24px;
+            }
+
+            .artist-name {
+                font-size: 20px;
+            }
+        }
+
+        /* Состояние паузы */
+        .paused .visualizer-bar {
             opacity: 0.3;
-            text-align: center;
-            margin-top: 10px;
+        }
+
+        .paused .album-cover {
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
     <div class="player-container" id="player">
-        <div class="cover-container">
-            <div class="ambient-light" id="ambientLight"></div>
-            <img class="album-cover active" id="cover1" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
-            <img class="album-cover inactive" id="cover2" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
-        </div>
-        <div class="track-info">
-            <div class="marquee-container" id="title-container">
-                <div class="track-title" id="title">Не воспроизводится</div>
+        <!-- ВЕРХНЯЯ СТРОКА: Обложка + Трек -->
+        <div class="top-row">
+            <!-- ПОДЛОЖКА 1 - COVER -->
+            <div class="cover-section">
+                <div class="ambient-light" id="ambientLight"></div>
+                <img class="album-cover cover-1 active" id="cover1" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
+                <img class="album-cover cover-2 inactive" id="cover2" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
             </div>
-            <div class="marquee-container" id="artist-container">
-                <div class="artist-name" id="artist">Нет данных</div>
+
+            <!-- ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ -->
+            <div class="track-section">
+                <div class="track-info">
+                    <div class="track-title" id="title">Не воспроизводится</div>
+                    <div class="artist-name" id="artist">Запустите медиа-плеер</div>
+                </div>
+
+                <div class="visualizer-section">
+                    <div class="visualizer" id="visualizer"></div>
+                </div>
             </div>
         </div>
 
-        <!-- ПОЛЗУНОК ПРОГРЕССА -->
-        <div class="progress-container">
+        <!-- ПОДЛОЖКА 3 - ПРОГРЕСС БАР (под обеими верхними подложками) -->
+        <div class="progress-section">
             <div class="progress-bar" id="progressBar">
                 <div class="progress" id="progress"></div>
             </div>
-            <div class="progress-time">
+            <div class="time-display">
                 <span id="currentTime">0:00</span>
                 <span id="duration">0:00</span>
             </div>
         </div>
 
-        <div class="visualizer" id="visualizer"></div>
-        <div class="status" id="status"></div>
+        <!-- СТАТУС (скрыт по умолчанию) -->
+        <div class="status-section" id="statusSection">
+            <div class="status" id="status"></div>
+        </div>
     </div>
 
     <script>
+    // Элементы DOM
     const player = document.getElementById('player');
     const cover1 = document.getElementById('cover1');
     const cover2 = document.getElementById('cover2');
@@ -313,63 +414,96 @@
     let nextCover = cover2; // Следующее изображение для перехода
     const title = document.getElementById('title');
     const artist = document.getElementById('artist');
-    const status = document.getElementById('status');
-    const visualizer = document.getElementById('visualizer');
-    const titleContainer = document.getElementById('title-container');
-    const artistContainer = document.getElementById('artist-container');
-
-    // Элементы прогресса
     const progressBar = document.getElementById('progressBar');
     const progress = document.getElementById('progress');
     const currentTimeEl = document.getElementById('currentTime');
     const durationEl = document.getElementById('duration');
+    const visualizer = document.getElementById('visualizer');
+    const statusText = document.getElementById('status');
+    const statusSection = document.getElementById('statusSection');
+    const ambientLight = document.getElementById('ambientLight');
 
+    // Переменные состояния
     let ws;
     let reconnectTimer;
     const RECONNECT_DELAY = 3000;
     let currentConfig = {};
-
-    // Переменные для прогресса
     let currentPosition = 0;
     let totalDuration = 0;
     let isPlaying = false;
     let progressInterval;
-    
-    // Переменные для подсветки
     let currentAmbientColor = null; // Сохраняем текущий цвет свечения (только из изображения обложки)
     let previousAmbientColor = null; // Предыдущий цвет для плавного перехода
     let colorTransitionAnimation = null; // Анимация перехода цветов
+    let activeCoverLoadId = null; // ID текущей загрузки обложки для предотвращения race condition
     let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
     let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
 
-    // ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ДЛИНЫ ТЕКСТА
-    function checkTextOverflow(element, container) {
-        const isOverflowing = element.scrollWidth > container.clientWidth;
-
-        if (isOverflowing) {
-            element.classList.add('marquee');
-            container.classList.add('marquee-active');
-            element.style.transform = '';
-            element.style.paddingLeft = '100%';
-            element.style.animation = 'marquee 15s linear infinite';
-        } else {
-            element.classList.remove('marquee');
-            container.classList.remove('marquee-active');
-            element.style.animation = '';
-            element.style.paddingLeft = '';
-            element.style.transform = '';
+    // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
+    function createVisualizer() {
+        visualizer.innerHTML = '';
+        for (let i = 0; i < 30; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'visualizer-bar';
+            
+            // Случайная задержка от 0 до 2 секунд для хаотичности
+            const randomDelay = Math.random() * 2;
+            // Случайная длительность от 0.8 до 2 секунд для разной скорости
+            const randomDuration = 0.8 + Math.random() * 1.2;
+            
+            // Случайные максимальные высоты для каждой точки анимации (0.3 - 1.0)
+            const max1 = 0.3 + Math.random() * 0.7;
+            const max2 = 0.3 + Math.random() * 0.7;
+            const max3 = 0.3 + Math.random() * 0.7;
+            const max4 = 0.3 + Math.random() * 0.7;
+            
+            // Случайная прозрачность для каждой точки
+            const opacity1 = 0.5 + Math.random() * 0.5;
+            const opacity2 = 0.4 + Math.random() * 0.4;
+            const opacity3 = 0.6 + Math.random() * 0.4;
+            const opacity4 = 0.5 + Math.random() * 0.3;
+            
+            bar.style.animationDelay = `${randomDelay.toFixed(2)}s`;
+            bar.style.animationDuration = `${randomDuration.toFixed(2)}s`;
+            bar.style.setProperty('--bar-max-1', max1.toFixed(3));
+            bar.style.setProperty('--bar-max-2', max2.toFixed(3));
+            bar.style.setProperty('--bar-max-3', max3.toFixed(3));
+            bar.style.setProperty('--bar-max-4', max4.toFixed(3));
+            bar.style.setProperty('--bar-opacity-1', opacity1.toFixed(2));
+            bar.style.setProperty('--bar-opacity-2', opacity2.toFixed(2));
+            bar.style.setProperty('--bar-opacity-3', opacity3.toFixed(2));
+            bar.style.setProperty('--bar-opacity-4', opacity4.toFixed(2));
+            
+            visualizer.appendChild(bar);
         }
-
-        return isOverflowing;
     }
 
-    // ФУНКЦИЯ ОБНОВЛЕНИЯ ПРОГРЕССА
+    // Запуск/остановка CSS анимации визуализатора (0% CPU нагрузка!)
+    function animateVisualizer() {
+        if (!currentConfig || currentConfig.wave_enabled !== false) {
+            visualizer.classList.add('enabled');
+        } else {
+            stopVisualizer();
+        }
+    }
+
+    // Остановка анимации (CSS анимация управляется через класс)
+    function stopVisualizer() {
+        visualizer.classList.remove('enabled');
+    }
+
+    // Форматирование времени
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Обновление прогресса
     function updateProgress() {
         if (totalDuration > 0) {
             const progressPercent = (currentPosition / totalDuration) * 100;
             progress.style.width = `${progressPercent}%`;
-
-            // Форматируем время
             currentTimeEl.textContent = formatTime(currentPosition);
             durationEl.textContent = formatTime(totalDuration);
         } else {
@@ -379,25 +513,14 @@
         }
     }
 
-    // ФУНКЦИЯ ФОРМАТИРОВАНИЯ ВРЕМЕНИ
-    function formatTime(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    // ЗАПУСК/ОСТАНОВКА ОБНОВЛЕНИЯ ПРОГРЕССА (оптимизировано)
+    // Обновление прогресса в реальном времени
     function startProgressUpdate() {
         if (progressInterval) clearInterval(progressInterval);
 
-        // Используем более эффективный метод обновления
         progressInterval = setInterval(() => {
             if (isPlaying && currentPosition < totalDuration) {
                 currentPosition += 1;
-                // Оптимизация: обновляем только если видно окно
-                if (!document.hidden) {
                 updateProgress();
-                }
             }
         }, 1000);
     }
@@ -406,6 +529,17 @@
         if (progressInterval) {
             clearInterval(progressInterval);
             progressInterval = null;
+        }
+    }
+
+    // Обновление статуса подключения
+    function setStatus(text) {
+        if (text && text !== "" && text !== "Воспроизведение" && text !== "Подключено") {
+            statusSection.style.display = 'block';
+            statusText.textContent = text;
+        } else {
+            statusSection.style.display = 'none';
+            statusText.textContent = "";
         }
     }
 
@@ -689,10 +823,10 @@
                 }
                 
                 // Финальная проверка: запрещаем сочетание красного/розового с красным/розовым
-                const isFirstRedPink = isRedOrPink(firstColor.hue);
-                const isSecondRedPink = isRedOrPink(secondColor.hue);
+                const isFirstRedPinkFinal = isRedOrPink(firstColor.hue);
+                const isSecondRedPinkFinal = isRedOrPink(secondColor.hue);
                 
-                if (isFirstRedPink && isSecondRedPink) {
+                if (isFirstRedPinkFinal && isSecondRedPinkFinal) {
                     // Если оба цвета красные/розовые, ищем альтернативный второй цвет
                     const alternativeColors = filteredColors.filter(c => {
                         if (c === firstColor) return false;
@@ -861,6 +995,18 @@
         return color;
     }
 
+    // Конвертация hex в rgba
+    function hexToRgba(hex, alpha = 0.5) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (result) {
+            const r = parseInt(result[1], 16);
+            const g = parseInt(result[2], 16);
+            const b = parseInt(result[3], 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+        return hex; // Возвращаем исходный цвет, если это не hex
+    }
+
     // Парсинг цвета в RGB
     function parseColor(color) {
         let r, g, b;
@@ -924,15 +1070,21 @@
             // Применяем цвет
             document.documentElement.style.setProperty('--ambient-color', colorString);
             
-            // Применяем тень к обоим изображениям (оптимизированная версия)
-            // Используем CSS переменные вместо прямого изменения box-shadow для экономии CPU
-            const shadowColor = `rgba(${currentR}, ${currentG}, ${currentB}, 0.6)`;
-            document.documentElement.style.setProperty('--cover-shadow', shadowColor);
-            
-            // Менее тяжелая версия box-shadow (меньше слоев)
-            const boxShadow = `0 0 35px ${shadowColor}, 0 0 55px ${shadowColor}`;
-            if (cover1) cover1.style.boxShadow = boxShadow;
-            if (cover2) cover2.style.boxShadow = boxShadow;
+            // Применяем тень к обоим изображениям
+            if (cover1) {
+                cover1.style.boxShadow = `
+                    0 0 25px rgba(${currentR}, ${currentG}, ${currentB}, 0.8),
+                    0 0 45px rgba(${currentR}, ${currentG}, ${currentB}, 0.6),
+                    0 0 65px rgba(${currentR}, ${currentG}, ${currentB}, 0.4)
+                `;
+            }
+            if (cover2) {
+                cover2.style.boxShadow = `
+                    0 0 25px rgba(${currentR}, ${currentG}, ${currentB}, 0.8),
+                    0 0 45px rgba(${currentR}, ${currentG}, ${currentB}, 0.6),
+                    0 0 65px rgba(${currentR}, ${currentG}, ${currentB}, 0.4)
+                `;
+            }
             
             if (progress < 1) {
                 colorTransitionAnimation = requestAnimationFrame(animate);
@@ -966,19 +1118,22 @@
             previousAmbientColor = targetColor;
             document.documentElement.style.setProperty('--ambient-color', targetColor);
             
-            // Применяем тень к обоим изображениям (оптимизированная версия)
-            const shadowColor = `rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6)`;
-            document.documentElement.style.setProperty('--cover-shadow', shadowColor);
-            
-            // Менее тяжелая версия box-shadow
-            const boxShadow = `0 0 35px ${shadowColor}, 0 0 55px ${shadowColor}`;
+            // Применяем тень к обоим изображениям
             if (cover1) {
                 cover1.style.transition = 'box-shadow 0.8s ease';
-                cover1.style.boxShadow = boxShadow;
+                cover1.style.boxShadow = `
+                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
+                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
+                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
+                `;
             }
             if (cover2) {
                 cover2.style.transition = 'box-shadow 0.8s ease';
-                cover2.style.boxShadow = boxShadow;
+                cover2.style.boxShadow = `
+                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
+                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
+                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
+                `;
             }
         }
     }
@@ -1041,7 +1196,6 @@
         document.documentElement.style.setProperty('--progress-color2', accentColorLight);
         
         // Исполнитель использует тот же цвет, что и название трека
-        // В visualisation.html имя исполнителя использует --text-color с opacity через CSS
         const artistElement = document.getElementById('artist');
         if (artistElement) {
             artistElement.style.color = ''; // Сбрасываем, чтобы использовать CSS переменную --text-color
@@ -1053,23 +1207,22 @@
         document.documentElement.style.setProperty('--progress-bg', progressBgColor);
     }
 
-    // ФУНКЦИЯ ПРИМЕНЕНИЯ НАСТРОЕК
+    // Применение конфигурации
     function applyConfig(config) {
         if (config) {
             const wasAutoColorsEnabled = currentConfig.auto_colors_enabled;
             currentConfig = config;
-            console.log('Применяем настройки:', config);
 
             // Применяем цвета только если автоматические цвета выключены
             if (!config.auto_colors_enabled) {
-            document.documentElement.style.setProperty('--bg-color', config.main_color || 'rgba(30, 30, 30, 1)');
-            document.documentElement.style.setProperty('--accent-color', config.accent_color || '#1db954');
+            document.documentElement.style.setProperty('--bg-color', config.main_color || config.background_color || 'rgba(30, 30, 30, 0.95)');
             document.documentElement.style.setProperty('--text-color', config.text_color || '#ffffff');
-            document.documentElement.style.setProperty('--wave-color', config.wave_color || '#1db954');
-            document.documentElement.style.setProperty('--progress-color', config.progress_color || '#1db954');
+            document.documentElement.style.setProperty('--accent-color', config.accent_color || config.wave_color || '#1db954');
+            document.documentElement.style.setProperty('--secondary-color', config.secondary_color || '#b3b3b3');
             document.documentElement.style.setProperty('--progress-color1', config.progress_color1 || config.progress_color || config.accent_color || config.wave_color || '#1db954');
             document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
             document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
+            document.documentElement.style.setProperty('--wave-color', config.wave_color || config.accent_color || '#1db954');
             } else {
                 // Если автоматические цвета включены и только что были включены (были выключены)
                 // Пересчитываем цвета из текущей обложки
@@ -1100,7 +1253,6 @@
                     }
                 }
             }
-            
             document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
             document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end');
             
@@ -1124,72 +1276,19 @@
             // Подсветка применяется только на основе цвета из изображения обложки
             // Акцентный цвет больше не используется для подсветки
 
-            setTimeout(() => {
-                checkTextOverflow(title, titleContainer);
-                checkTextOverflow(artist, artistContainer);
-            }, 100);
+            // Исполнитель всегда использует тот же цвет, что и название трека (--text-color)
+            const artistElement = document.getElementById('artist');
+            if (artistElement) {
+                artistElement.style.color = ''; // Сбрасываем, чтобы использовать CSS переменную --text-color
+            }
 
-            // Управление CSS анимацией через класс
+            // Управление визуализатором
+            if (config.wave_enabled) {
                 animateVisualizer();
+            } else {
+                stopVisualizer();
+            }
         }
-    }
-
-    // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
-    function createVisualizer() {
-        visualizer.innerHTML = '';
-        for (let i = 0; i < 14; i++) {
-            const bar = document.createElement('div');
-            bar.className = 'visualizer-bar';
-            
-            // Случайная задержка от 0 до 2 секунд для хаотичности
-            const randomDelay = Math.random() * 2;
-            // Случайная длительность от 0.8 до 2 секунд для разной скорости
-            const randomDuration = 0.8 + Math.random() * 1.2;
-            
-            // Случайные максимальные высоты для каждой точки анимации (0.3 - 1.0)
-            const max1 = 0.3 + Math.random() * 0.7;
-            const max2 = 0.3 + Math.random() * 0.7;
-            const max3 = 0.3 + Math.random() * 0.7;
-            const max4 = 0.3 + Math.random() * 0.7;
-
-            // Случайная прозрачность для каждой точки
-            const opacity1 = 0.5 + Math.random() * 0.5;
-            const opacity2 = 0.4 + Math.random() * 0.4;
-            const opacity3 = 0.6 + Math.random() * 0.4;
-            const opacity4 = 0.5 + Math.random() * 0.3;
-            
-            bar.style.animationDelay = `${randomDelay.toFixed(2)}s`;
-            bar.style.animationDuration = `${randomDuration.toFixed(2)}s`;
-            bar.style.setProperty('--bar-max-1', max1.toFixed(3));
-            bar.style.setProperty('--bar-max-2', max2.toFixed(3));
-            bar.style.setProperty('--bar-max-3', max3.toFixed(3));
-            bar.style.setProperty('--bar-max-4', max4.toFixed(3));
-            bar.style.setProperty('--bar-opacity-1', opacity1.toFixed(2));
-            bar.style.setProperty('--bar-opacity-2', opacity2.toFixed(2));
-            bar.style.setProperty('--bar-opacity-3', opacity3.toFixed(2));
-            bar.style.setProperty('--bar-opacity-4', opacity4.toFixed(2));
-            
-            visualizer.appendChild(bar);
-        }
-    }
-
-    // Запуск/остановка CSS анимации визуализатора (0% CPU нагрузка!)
-    function animateVisualizer() {
-        if (!currentConfig || currentConfig.wave_enabled !== false) {
-            visualizer.classList.add('enabled');
-        } else {
-            stopVisualizer();
-        }
-    }
-
-    // Остановка анимации (CSS анимация управляется через класс)
-    function stopVisualizer() {
-        visualizer.classList.remove('enabled');
-    }
-
-    // Установка статуса
-    function setStatus(text) {
-        status.textContent = text;
     }
 
     // Обновление данных плеера
@@ -1198,9 +1297,10 @@
         
         if (data.status === 'inactive') {
             // Защита от устаревших inactive сообщений после быстрого переключения треков
+            // Если недавно было активное сообщение, игнорируем это inactive
             if (lastActiveTimestamp > 0 && (messageTimestamp - lastActiveTimestamp) < 2000) {
                 console.log('Игнорируем устаревшее inactive сообщение после активного трека');
-                return;
+                return; // Игнорируем устаревшее сообщение
             }
             
             // Отменяем предыдущий таймер, если он был
@@ -1214,10 +1314,10 @@
                 // Проверяем еще раз, возможно, за это время пришел новый трек
                 if (lastActiveTimestamp > 0 && (Date.now() - lastActiveTimestamp) < 3000) {
                     console.log('Новый трек загрузился, отменяем показ NoCover');
-                    return;
+                    return; // Новый трек загрузился, не показываем NoCover
                 }
                 
-                title.textContent = "Плеер не обнаружен";
+                title.textContent = "Не воспроизводится";
                 artist.textContent = "Запустите медиа-плеер";
                 const defaultCoverSrc = '/songinfo/NoCover.png';
                 if (currentCover) {
@@ -1229,17 +1329,14 @@
                 stopVisualizer();
                 stopProgressUpdate();
 
-                // Сбрасываем прогресс
                 currentPosition = 0;
                 totalDuration = 0;
                 isPlaying = false;
                 updateProgress();
 
-                title.classList.remove('marquee');
-                artist.classList.remove('marquee');
-                titleContainer.classList.remove('marquee-active');
-                artistContainer.classList.remove('marquee-active');
-                lastActiveTimestamp = 0;
+                player.classList.add('paused');
+                setStatus("Плеер не обнаружен");
+                lastActiveTimestamp = 0; // Сбрасываем timestamp при реальном inactive
                 noCoverTimeout = null;
             }, 1500); // Задержка 1.5 секунды перед показом NoCover
             return;
@@ -1254,21 +1351,29 @@
             noCoverTimeout = null;
         }
 
-        resetAnimation(title, titleContainer);
-        resetAnimation(artist, artistContainer);
+        // Обновляем данные только если они присутствуют и не пустые
+        // Это предотвращает появление "Неизвестный трек" при быстрых переключениях
+        if (data.title !== undefined && data.title !== null && data.title !== '') {
+            title.textContent = data.title;
+        }
+        if (data.artist !== undefined && data.artist !== null && data.artist !== '') {
+            artist.textContent = data.artist;
+        }
 
-        title.textContent = data.title || "Неизвестный трек";
-        artist.textContent = data.artist || "Неизвестный исполнитель";
-
-        // ОБНОВЛЯЕМ ДАННЫЕ ПРОГРЕССА
+        // Обновляем прогресс синхронно
         if (data.position !== undefined) {
             currentPosition = data.position;
         }
         if (data.duration !== undefined) {
             totalDuration = data.duration;
         }
+        
+        // Обновляем прогресс сразу, чтобы избежать задержки
+        updateProgress();
+        
         if (data.is_playing !== undefined) {
             isPlaying = data.is_playing;
+            player.classList.toggle('paused', !isPlaying);
 
             if (isPlaying) {
                 startProgressUpdate();
@@ -1277,21 +1382,24 @@
             }
         }
 
-        updateProgress();
-
-        // Обновляем обложку
-        if (data.cover_url) {
+        // Обновляем обложку только если есть cover_url
+        // Если cover_url отсутствует, сохраняем текущую обложку
+        if (data.cover_url && data.cover_url !== '') {
             // Сохраняем текущий цвет как предыдущий перед переключением трека
             // Это нужно для плавного перехода от одного цвета к другому
             if (currentAmbientColor) {
                 previousAmbientColor = currentAmbientColor;
             }
             
+            // Защита от race condition: создаем уникальный ID для текущей загрузки
+            const loadId = Date.now() + Math.random();
+            activeCoverLoadId = loadId;
+            
             // Определяем, какое изображение будет следующим для загрузки
             const loadingCover = nextCover;
-            const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg');
+            const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg') || currentCover.src === '/no_cover';
             
-            // Убеждаемся, что loadingCover скрыт перед загрузкой нового изображения
+            // ВАЖНО: Убеждаемся, что loadingCover скрыт перед загрузкой нового изображения
             // Это предотвращает показ "no cover" во время загрузки
             loadingCover.classList.remove('active');
             loadingCover.classList.add('inactive');
@@ -1301,6 +1409,26 @@
             loadingCover.onerror = null;
             
             loadingCover.onload = function() {
+                // Защита от race condition: проверяем, что это еще актуальная загрузка
+                if (activeCoverLoadId !== loadId) {
+                    console.log('Игнорируем устаревшую загрузку обложки', { current: activeCoverLoadId, expected: loadId });
+                    return; // Эта загрузка уже устарела, игнорируем её
+                }
+                
+                console.log('Обложка загружена:', { src: loadingCover.src, width: loadingCover.naturalWidth, isFirstLoad });
+                
+                // Проверяем, что изображение действительно загрузилось
+                if (!loadingCover.src || loadingCover.naturalWidth === 0) {
+                    console.log('Обложка не загрузилась:', loadingCover.src);
+                    return; // Не переключаемся, если изображение не загружено
+                }
+                
+                // Пропускаем только если это явно no_cover (и не первая загрузка)
+                if (!isFirstLoad && (loadingCover.src.includes('/no_cover') || loadingCover.src.includes('NoCover'))) {
+                    console.log('Пропускаем no_cover при переключении');
+                    return;
+                }
+                
                 // Извлекаем два доминирующих цвета из изображения
                 getDominantColors(loadingCover)
                     .then(colors => {
@@ -1331,6 +1459,7 @@
                 // Плавный переход между обложками (crossfade)
                 // Если это первая загрузка, просто делаем изображение видимым
                 if (isFirstLoad) {
+                    console.log('Первая загрузка обложки, показываем изображение');
                     loadingCover.classList.remove('inactive');
                     loadingCover.classList.add('active');
                     if (currentCover !== loadingCover) {
@@ -1340,10 +1469,18 @@
                     currentCover = loadingCover;
                     nextCover = (loadingCover === cover1) ? cover2 : cover1;
                 } else {
+                    console.log('Переключение обложки, показываем новую');
+                    // Переключаем обложки: сначала показываем новую, затем скрываем старую
                     loadingCover.classList.remove('inactive');
                     loadingCover.classList.add('active');
-                    currentCover.classList.remove('active');
-                    currentCover.classList.add('inactive');
+                    
+                    // Небольшая задержка для плавного перехода перед скрытием старой
+                    setTimeout(() => {
+                        if (currentCover !== loadingCover) {
+                            currentCover.classList.remove('active');
+                            currentCover.classList.add('inactive');
+                        }
+                    }, 50);
                     
                     // Переключаем указатели для следующего перехода
                     const temp = currentCover;
@@ -1353,34 +1490,44 @@
             };
             
             loadingCover.onerror = () => {
-                loadingCover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
-                // При ошибке загрузки обложки не применяем подсветку
-                // Акцентный цвет больше не используется
+                // Защита от race condition: проверяем, что это еще актуальная загрузка
+                if (activeCoverLoadId !== loadId) {
+                    console.log('Игнорируем устаревшую ошибку загрузки обложки');
+                    return; // Эта загрузка уже устарела, игнорируем её
+                }
+                
+                // При ошибке устанавливаем no cover.png из songinfo
+                loadingCover.src = '/no_cover';
+                loadingCover.onerror = null; // Сбрасываем обработчик, чтобы избежать бесконечного цикла
+                console.error('Ошибка загрузки обложки, используем no_cover.png');
             };
             
-            loadingCover.src = data.cover_url + `&t=${Date.now()}`;
+            // Устанавливаем новый источник изображения
+            const newImageUrl = data.cover_url + `&t=${Date.now()}`;
+            loadingCover.src = newImageUrl;
+            
+            // Если изображение уже загружено (из кеша), onload может не сработать
+            // Проверяем это и вызываем обработчик вручную
+            if (loadingCover.complete && loadingCover.naturalWidth > 0) {
+                // Используем setTimeout, чтобы гарантировать, что onload установлен и loadId актуален
+                setTimeout(() => {
+                    // Проверяем, что загрузка все еще актуальна
+                    if (activeCoverLoadId === loadId && loadingCover.onload) {
+                        loadingCover.onload();
+                    }
+                }, 0);
+            }
         }
 
+        // Показываем плеер
         player.style.opacity = 1;
+        player.classList.add('loaded');
         setStatus("");
 
-        setTimeout(() => {
-            checkTextOverflow(title, titleContainer);
-            checkTextOverflow(artist, artistContainer);
-        }, 100);
-
-        // Управление CSS анимацией через класс
+        // Запускаем визуализатор если нужно
+        if (currentConfig.wave_enabled !== false) {
             animateVisualizer();
-    }
-
-    function resetAnimation(element, container) {
-        element.classList.remove('marquee');
-        if (container) container.classList.remove('marquee-active');
-        element.style.animation = 'none';
-        element.style.paddingLeft = '';
-        element.style.transform = '';
-        void element.offsetWidth;
-        element.style.animation = '';
+        }
     }
 
     function goToIndex() {
@@ -1410,7 +1557,7 @@
         }, 50);
     });
 
-    // Подключение к WebSocket
+    // WebSocket подключение
     function connect() {
         setStatus("Подключение...");
 
@@ -1440,7 +1587,7 @@
         };
 
         ws.onclose = () => {
-            setStatus("Соединение потеряно");
+            setStatus("Переподключение...");
             stopVisualizer();
             stopProgressUpdate();
             reconnect();
@@ -1450,60 +1597,51 @@
             console.error("WebSocket error:", err);
             stopVisualizer();
             stopProgressUpdate();
-            reconnect();
         };
     }
 
-    // Переподключение
     function reconnect() {
         if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(connect, RECONNECT_DELAY);
     }
 
-    // Запуск при загрузке
+    // Обработчик клика на прогресс-бар
+    progressBar.addEventListener('click', (e) => {
+        if (totalDuration > 0) {
+            const rect = progressBar.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            currentPosition = percent * totalDuration;
+            updateProgress();
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: "seek",
+                    position: currentPosition
+                }));
+            }
+        }
+    });
+
+    // Инициализация
     document.addEventListener('DOMContentLoaded', () => {
         createVisualizer();
         connect();
 
-        window.addEventListener('resize', () => {
-            checkTextOverflow(title, titleContainer);
-            checkTextOverflow(artist, artistContainer);
-        });
-
-        // Обработчик клика на прогресс-бар
-        progressBar.addEventListener('click', (e) => {
-            if (totalDuration > 0) {
-                const rect = progressBar.getBoundingClientRect();
-                const percent = (e.clientX - rect.left) / rect.width;
-                currentPosition = percent * totalDuration;
-                updateProgress();
-
-                // Здесь можно отправить команду на сервер для перемотки
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: "seek",
-                        position: currentPosition
-                    }));
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopVisualizer();
+                stopProgressUpdate();
+            } else {
+                if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
+                    animateVisualizer();
+                }
+                if (isPlaying) {
+                    startProgressUpdate();
                 }
             }
         });
     });
-
-    // Остановка анимации при скрытии вкладки
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            stopVisualizer();
-            stopProgressUpdate();
-        } else {
-            if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
-                // Управление CSS анимацией через класс
-                animateVisualizer();
-            }
-            if (isPlaying) {
-                startProgressUpdate();
-            }
-        }
-    });
     </script>
 </body>
 </html>
+

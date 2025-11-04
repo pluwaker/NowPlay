@@ -187,6 +187,25 @@ async def media_monitor():
                     )
                     if cover_updated:
                         current_data["cover_version"] += 1
+                        # Отправляем отдельное сообщение с обновленной обложкой
+                        cover_update_msg = {
+                            "type": "update",
+                            "data": {
+                                "artist": new_artist,
+                                "title": new_title,
+                                "position": 0,
+                                "duration": 0,
+                                "is_playing": is_playing,
+                                "cover_url": f"/cover?v={current_data['cover_version']}",
+                                "config": current_config,
+                                "status": "active"
+                            }
+                        }
+                        for ws in list(current_data['listeners']):
+                            try:
+                                await ws.send_json(cover_update_msg)
+                            except:
+                                current_data['listeners'].remove(ws)
 
                     # ⏳ Принудительно ждём обновления длительности
                     real_duration = 0
@@ -203,11 +222,23 @@ async def media_monitor():
 
                     current_data["duration"] = real_duration
 
-                    # Отправляем финальное обновление, если изменилось
-                    msg["data"]["duration"] = real_duration
+                    # Отправляем финальное обновление с актуальным cover_url и duration
+                    final_msg = {
+                        "type": "update",
+                        "data": {
+                            "artist": new_artist,
+                            "title": new_title,
+                            "position": 0,
+                            "duration": real_duration,
+                            "is_playing": is_playing,
+                            "cover_url": f"/cover?v={current_data['cover_version']}",
+                            "config": current_config,
+                            "status": "active"
+                        }
+                    }
                     for ws in list(current_data['listeners']):
                         try:
-                            await ws.send_json(msg)
+                            await ws.send_json(final_msg)
                         except:
                             current_data['listeners'].remove(ws)
 
@@ -274,40 +305,50 @@ async def media_monitor():
 
             else:
                 # Нет активной сессии
+                # Проверяем, действительно ли нет активной сессии (не просто временная задержка)
+                # Используем небольшую задержку, чтобы не отправлять inactive слишком рано
                 if current_data["artist"] != "Не воспроизводится":
-                    current_data.update({
-                        "artist": "Не воспроизводится",
-                        "title": "Нет данных",
-                        "position": 0,
-                        "duration": 0,
-                        "is_playing": False
-                    })
-
-                    msg = {
-                        "type": "update",
-                        "data": {
+                    # Небольшая задержка перед отправкой inactive, чтобы избежать ложных срабатываний
+                    await asyncio.sleep(0.5)
+                    # Проверяем еще раз после задержки - возможно, сессия появилась
+                    sessions_check = await MediaManager.request_async()
+                    current_session_check = await get_session_by_source(sessions_check, selected_source)
+                    
+                    if not current_session_check:
+                        # Реально нет сессии - отправляем inactive
+                        current_data.update({
                             "artist": "Не воспроизводится",
                             "title": "Нет данных",
                             "position": 0,
                             "duration": 0,
-                            "is_playing": False,
-                            "cover_url": f"/cover?v={current_data['cover_version']}",
-                            "config": current_config,
-                            "status": "inactive"
-                        }
-                    }
-                    for ws in list(current_data['listeners']):
-                        try:
-                            await ws.send_json(msg)
-                        except:
-                            current_data['listeners'].remove(ws)
+                            "is_playing": False
+                        })
 
-                    last_artist = "Не воспроизводится"
-                    last_title = "Нет данных"
-                    last_position = 0
-                    last_is_playing = False
-                    last_duration = 0
-                    pending_track_change = False
+                        msg = {
+                            "type": "update",
+                            "data": {
+                                "artist": "Не воспроизводится",
+                                "title": "Нет данных",
+                                "position": 0,
+                                "duration": 0,
+                                "is_playing": False,
+                                "cover_url": f"/cover?v={current_data['cover_version']}",
+                                "config": current_config,
+                                "status": "inactive"
+                            }
+                        }
+                        for ws in list(current_data['listeners']):
+                            try:
+                                await ws.send_json(msg)
+                            except:
+                                current_data['listeners'].remove(ws)
+
+                        last_artist = "Не воспроизводится"
+                        last_title = "Нет данных"
+                        last_position = 0
+                        last_is_playing = False
+                        last_duration = 0
+                        pending_track_change = False
 
         except Exception as e:
             print(f"Ошибка мониторинга медиа: {e}")
@@ -453,8 +494,11 @@ async def websocket_handler(request):
             "data": {
                 "artist": current_data["artist"],
                 "title": current_data["title"],
+                "position": current_data["position"],
+                "duration": current_data["duration"],
+                "is_playing": current_data["is_playing"],
                 "cover_url": f"/cover?v={current_data['cover_version']}",
-                "status": "active",
+                "status": "active" if current_data["artist"] != "Не воспроизводится" else "inactive",
                 "config": current_config
             }
         }

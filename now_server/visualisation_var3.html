@@ -216,7 +216,7 @@
             border-radius: 2px 2px 0 0;
             flex: 1;
             transform-origin: bottom;
-            height: 30px;
+            height: 50px;
             opacity: 0.3;
             /* CSS анимация вместо JS - легче для CPU */
             animation: wave-animation 1.5s ease-in-out infinite;
@@ -437,6 +437,9 @@
     let currentAmbientColor = null; // Сохраняем текущий цвет свечения (только из изображения обложки)
     let previousAmbientColor = null; // Предыдущий цвет для плавного перехода
     let colorTransitionAnimation = null; // Анимация перехода цветов
+    let activeCoverLoadId = null; // ID текущей загрузки обложки для предотвращения race condition
+    let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
+    let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
 
     // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
     function createVisualizer() {
@@ -1209,6 +1212,7 @@
     // Применение конфигурации
     function applyConfig(config) {
         if (config) {
+            const wasAutoColorsEnabled = currentConfig.auto_colors_enabled;
             currentConfig = config;
 
             // Применяем цвета только если автоматические цвета выключены
@@ -1221,6 +1225,35 @@
             document.documentElement.style.setProperty('--progress-color2', config.progress_color2 || config.progress_color || '#1ed760');
             document.documentElement.style.setProperty('--progress-bg', config.progress_bg_color || '#404040');
             document.documentElement.style.setProperty('--wave-color', config.wave_color || config.accent_color || '#1db954');
+            } else {
+                // Если автоматические цвета включены и только что были включены (были выключены)
+                // Пересчитываем цвета из текущей обложки
+                if (!wasAutoColorsEnabled && config.auto_colors_enabled) {
+                    // Проверяем, есть ли загруженная обложка
+                    const activeCover = currentCover && currentCover.src && currentCover.complete && currentCover.naturalWidth > 0 ? currentCover : null;
+                    if (activeCover && !activeCover.src.includes('NoCover') && !activeCover.src.includes('/no_cover')) {
+                        console.log('Автоматические цвета включены, пересчитываем цвета из текущей обложки');
+                        // Пересчитываем цвета из текущей обложки
+                        getDominantColors(activeCover)
+                            .then(colors => {
+                                console.log('Применяем автоматические цвета из текущей обложки:', colors);
+                                applyAutoColors(colors);
+                            })
+                            .catch(error => {
+                                console.error('Не удалось извлечь цвета из обложки:', error);
+                                // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
+                                getDominantColor(activeCover)
+                                    .then(color => {
+                                        if (currentConfig.auto_colors_enabled) {
+                                            updateAmbientLight(color, false);
+                                        }
+                                    })
+                                    .catch(() => {
+                                        // Оставляем предыдущий цвет подсветки
+                                    });
+                            });
+                    }
+                }
             }
             document.documentElement.style.setProperty('--align-items', config.align_items || 'flex-end');
             document.documentElement.style.setProperty('--justify-content', config.justify_content || 'flex-end');
@@ -1262,36 +1295,84 @@
 
     // Обновление данных плеера
     function updatePlayer(data) {
+        const messageTimestamp = Date.now();
+        
         if (data.status === 'inactive') {
-            title.textContent = "Не воспроизводится";
-            artist.textContent = "Запустите медиа-плеер";
-            const defaultCoverSrc = '/songinfo/NoCover.png';
-            if (currentCover) {
-                currentCover.src = defaultCoverSrc;
+            // Защита от устаревших inactive сообщений после быстрого переключения треков
+            // Если недавно было активное сообщение, игнорируем это inactive
+            if (lastActiveTimestamp > 0 && (messageTimestamp - lastActiveTimestamp) < 2000) {
+                console.log('Игнорируем устаревшее inactive сообщение после активного трека');
+                return; // Игнорируем устаревшее сообщение
             }
-            if (nextCover && nextCover !== currentCover) {
-                nextCover.src = defaultCoverSrc;
+            
+            // Отменяем предыдущий таймер, если он был
+            if (noCoverTimeout) {
+                clearTimeout(noCoverTimeout);
+                noCoverTimeout = null;
             }
-            stopVisualizer();
-            stopProgressUpdate();
+            
+            // Задержка перед показом NoCover.png (даем время новому треку загрузиться)
+            noCoverTimeout = setTimeout(() => {
+                // Проверяем еще раз, возможно, за это время пришел новый трек
+                if (lastActiveTimestamp > 0 && (Date.now() - lastActiveTimestamp) < 3000) {
+                    console.log('Новый трек загрузился, отменяем показ NoCover');
+                    return; // Новый трек загрузился, не показываем NoCover
+                }
+                
+                title.textContent = "Не воспроизводится";
+                artist.textContent = "Запустите медиа-плеер";
+                const defaultCoverSrc = '/songinfo/NoCover.png';
+                if (currentCover) {
+                    currentCover.src = defaultCoverSrc;
+                }
+                if (nextCover && nextCover !== currentCover) {
+                    nextCover.src = defaultCoverSrc;
+                }
+                stopVisualizer();
+                stopProgressUpdate();
 
-            currentPosition = 0;
-            totalDuration = 0;
-            isPlaying = false;
-            updateProgress();
+                currentPosition = 0;
+                totalDuration = 0;
+                isPlaying = false;
+                updateProgress();
 
-            player.classList.add('paused');
-            setStatus("Плеер не обнаружен");
+                player.classList.add('paused');
+                setStatus("Плеер не обнаружен");
+                lastActiveTimestamp = 0; // Сбрасываем timestamp при реальном inactive
+                noCoverTimeout = null;
+            }, 1500); // Задержка 1.5 секунды перед показом NoCover
             return;
         }
+        
+        // Обновляем timestamp при активном сообщении
+        lastActiveTimestamp = messageTimestamp;
+        
+        // Отменяем таймер показа NoCover, если активный трек пришел
+        if (noCoverTimeout) {
+            clearTimeout(noCoverTimeout);
+            noCoverTimeout = null;
+        }
 
-        // Обновляем данные
-        title.textContent = data.title || "Неизвестный трек";
-        artist.textContent = data.artist || "Неизвестный исполнитель";
+        // Обновляем данные только если они присутствуют и не пустые
+        // Это предотвращает появление "Неизвестный трек" при быстрых переключениях
+        if (data.title !== undefined && data.title !== null && data.title !== '') {
+            title.textContent = data.title;
+        }
+        if (data.artist !== undefined && data.artist !== null && data.artist !== '') {
+            artist.textContent = data.artist;
+        }
 
-        // Обновляем прогресс
-        if (data.position !== undefined) currentPosition = data.position;
-        if (data.duration !== undefined) totalDuration = data.duration;
+        // Обновляем прогресс синхронно
+        if (data.position !== undefined) {
+            currentPosition = data.position;
+        }
+        if (data.duration !== undefined) {
+            totalDuration = data.duration;
+        }
+        
+        // Обновляем прогресс сразу, чтобы избежать задержки
+        updateProgress();
+        
         if (data.is_playing !== undefined) {
             isPlaying = data.is_playing;
             player.classList.toggle('paused', !isPlaying);
@@ -1303,15 +1384,18 @@
             }
         }
 
-        updateProgress();
-
-        // Обновляем обложку
-        if (data.cover_url) {
+        // Обновляем обложку только если есть cover_url
+        // Если cover_url отсутствует, сохраняем текущую обложку
+        if (data.cover_url && data.cover_url !== '') {
             // Сохраняем текущий цвет как предыдущий перед переключением трека
             // Это нужно для плавного перехода от одного цвета к другому
             if (currentAmbientColor) {
                 previousAmbientColor = currentAmbientColor;
             }
+            
+            // Защита от race condition: создаем уникальный ID для текущей загрузки
+            const loadId = Date.now() + Math.random();
+            activeCoverLoadId = loadId;
             
             // Определяем, какое изображение будет следующим для загрузки
             const loadingCover = nextCover;
@@ -1327,9 +1411,24 @@
             loadingCover.onerror = null;
             
             loadingCover.onload = function() {
-                // Проверяем, что изображение действительно загрузилось (не пустое и не no cover)
-                if (!loadingCover.src || loadingCover.src.includes('data:image/svg') || loadingCover.src === '/no_cover') {
+                // Защита от race condition: проверяем, что это еще актуальная загрузка
+                if (activeCoverLoadId !== loadId) {
+                    console.log('Игнорируем устаревшую загрузку обложки', { current: activeCoverLoadId, expected: loadId });
+                    return; // Эта загрузка уже устарела, игнорируем её
+                }
+                
+                console.log('Обложка загружена:', { src: loadingCover.src, width: loadingCover.naturalWidth, isFirstLoad });
+                
+                // Проверяем, что изображение действительно загрузилось
+                if (!loadingCover.src || loadingCover.naturalWidth === 0) {
+                    console.log('Обложка не загрузилась:', loadingCover.src);
                     return; // Не переключаемся, если изображение не загружено
+                }
+                
+                // Пропускаем только если это явно no_cover (и не первая загрузка)
+                if (!isFirstLoad && (loadingCover.src.includes('/no_cover') || loadingCover.src.includes('NoCover'))) {
+                    console.log('Пропускаем no_cover при переключении');
+                    return;
                 }
                 
                 // Извлекаем два доминирующих цвета из изображения
@@ -1362,6 +1461,7 @@
                 // Плавный переход между обложками (crossfade)
                 // Если это первая загрузка, просто делаем изображение видимым
                 if (isFirstLoad) {
+                    console.log('Первая загрузка обложки, показываем изображение');
                     loadingCover.classList.remove('inactive');
                     loadingCover.classList.add('active');
                     if (currentCover !== loadingCover) {
@@ -1371,6 +1471,7 @@
                     currentCover = loadingCover;
                     nextCover = (loadingCover === cover1) ? cover2 : cover1;
                 } else {
+                    console.log('Переключение обложки, показываем новую');
                     // Переключаем обложки: сначала показываем новую, затем скрываем старую
                     loadingCover.classList.remove('inactive');
                     loadingCover.classList.add('active');
@@ -1391,6 +1492,12 @@
             };
             
             loadingCover.onerror = () => {
+                // Защита от race condition: проверяем, что это еще актуальная загрузка
+                if (activeCoverLoadId !== loadId) {
+                    console.log('Игнорируем устаревшую ошибку загрузки обложки');
+                    return; // Эта загрузка уже устарела, игнорируем её
+                }
+                
                 // При ошибке устанавливаем no cover.png из songinfo
                 loadingCover.src = '/no_cover';
                 loadingCover.onerror = null; // Сбрасываем обработчик, чтобы избежать бесконечного цикла
@@ -1404,9 +1511,10 @@
             // Если изображение уже загружено (из кеша), onload может не сработать
             // Проверяем это и вызываем обработчик вручную
             if (loadingCover.complete && loadingCover.naturalWidth > 0) {
-                // Используем setTimeout, чтобы гарантировать, что onload установлен
+                // Используем setTimeout, чтобы гарантировать, что onload установлен и loadId актуален
                 setTimeout(() => {
-                    if (loadingCover.onload) {
+                    // Проверяем, что загрузка все еще актуальна
+                    if (activeCoverLoadId === loadId && loadingCover.onload) {
                         loadingCover.onload();
                     }
                 }, 0);

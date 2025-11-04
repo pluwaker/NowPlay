@@ -6,6 +6,9 @@ import socket
 import os
 import tkinter
 from now_server.now import run_server
+import urllib.request
+import urllib.error
+import json
 
 def find_free_port(start_port=8080, max_port=9000):
     for port in range(start_port, max_port):
@@ -87,15 +90,22 @@ class NowPlayApp(ctk.CTk):
         """Отправляет новые настройки на сервер"""
         if self.is_server_running():
             try:
-                response = requests.post(
+                data = json.dumps(new_config).encode('utf-8')
+                req = urllib.request.Request(
                     f"http://localhost:{self.port}/update_config",
-                    json=new_config,
-                    timeout=2
+                    data=data,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
                 )
-                if response.status_code == 200:
-                    print("✅ Настройки применены на сервере")
-                else:
-                    print("⚠️ Не удалось применить настройки на сервере")
+                req.add_header('User-Agent', 'NowPlay/1.0')
+                with urllib.request.urlopen(req, timeout=2) as response:
+                    if response.status == 200:
+                        print("✅ Настройки применены на сервере")
+                    else:
+                        print("⚠️ Не удалось применить настройки на сервере")
+            except urllib.error.URLError:
+                # Сервер не доступен - это нормально
+                pass
             except Exception as e:
                 print(f"❌ Ошибка отправки настроек: {e}")
 

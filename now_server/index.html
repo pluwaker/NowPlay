@@ -77,6 +77,10 @@
             <div class="template-name">📻 Классический горизонталньый</div>
             <div class="template-desc">Единая подложка, компактный дизайн, а ещё и горизонтальный</div>
         </div>
+        <div class="template-card" onclick="loadTemplate('visualisation_var3_horizontal.html')">
+            <div class="template-name">🧱 Модульный горизонталньый</div>
+            <div class="template-desc">Модульный дизайн, с горизонтальной визуализацией</div>
+        </div>
 
         <div class="current-template" id="currentTemplate">
             Выберите шаблон
@@ -114,7 +118,8 @@
                 'visualisation.html': 'Классический',
                 'visualisation_var2.html': 'Модерн',
                 'visualisation_var3.html': 'Модульный',
-                'visualisation_horizontal': 'Классический горизонтальный'
+                'visualisation_horizontal': 'Классический горизонтальный',
+                'visualisation_var3_horizontal': 'Модульный горизонтальный'
             };
             return names[filename] || filename;
         }

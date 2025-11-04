@@ -5,8 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="9e0c5b78-c955-4340-b9cc-09c014c703a3" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var2.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

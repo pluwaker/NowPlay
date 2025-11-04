@@ -1,10 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
+# ОПТИМИЗИРОВАННАЯ сборка для лучшей производительности
 
 block_cipher = None
 
 a = Analysis(
     ['main.py'],
-    pathex=['.'],  # добавили корень проекта
+    pathex=['.'],
     binaries=[],
     datas=[
         ('ui/*.py', 'ui'),
@@ -16,6 +17,7 @@ a = Analysis(
         ('config.py', '.'),
         ('config_manager.py', '.'),
         ('icon.ico', '.'),
+        ('songinfo', 'songinfo'),  # Добавляем папку с обложками
     ],
     hiddenimports=[
         'ui.app',
@@ -32,6 +34,7 @@ a = Analysis(
         'winsdk.windows.media.control',
         'winsdk.windows.storage.streams',
         'asyncio',
+        'asyncio.windows_events',  # Важно для Windows
         'PIL',
         'PIL.Image',
         'PIL.ImageTk',
@@ -40,35 +43,39 @@ a = Analysis(
         'urllib.error',
         'urllib.parse',
         'threading',
-        'colorsys',  # Для работы с цветами в HSV (ModernColorPicker)
+        'colorsys',
     ],
     hookspath=[],
     runtime_hooks=[],
     excludes=[
-        'requests',  # Заменен на urllib
-        'multiprocessing',  # Заменен на threading
+        'requests',
+        'multiprocessing',
         'pytest',
         'setuptools',
         'distutils',
         'matplotlib',
-        'numpy',  # Не используется напрямую
+        'numpy',
         'scipy',
         'pandas',
         'IPython',
         'jupyter',
+        'pdb',  # Отладчик
+        'unittest',
+        'email',
+        'http',
+        'xml',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
-    noarchive=False,
+    noarchive=False,  # Важно: False для лучшей производительности
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# ОПТИМИЗАЦИЯ: Используем --onedir вместо --onefile для ускорения
-# --onefile создает временную папку и распаковывает все при каждом запуске (медленно!)
+# КРИТИЧНО: Используем --onedir вместо --onefile
+# --onefile распаковывает все в временную папку при каждом запуске (очень медленно!)
 # --onedir создает папку с файлами (быстрее в 10-50 раз)
-
 exe = EXE(
     pyz,
     a.scripts,
@@ -80,14 +87,12 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,  # ОТКЛЮЧЕНО: UPX замедляет распаковку и может вызывать проблемы
-    console=False,  # включи True, если хочешь видеть ошибки в консоли
+    upx=False,  # ОТКЛЮЧЕНО: UPX замедляет распаковку
+    console=False,
     icon='icon.ico',
-    onefile=False,  # ИСПОЛЬЗУЕМ --onedir для ускорения
 )
 
 # COLLECT создает папку с файлами (--onedir режим)
-# Это необходимо для режима --onedir
 coll = COLLECT(
     exe,
     a.binaries,
@@ -98,3 +103,4 @@ coll = COLLECT(
     upx_exclude=[],
     name='NowPlay',
 )
+

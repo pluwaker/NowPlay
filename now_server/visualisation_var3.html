@@ -440,6 +440,8 @@
     let activeCoverLoadId = null; // ID текущей загрузки обложки для предотвращения race condition
     let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
     let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
+    let colorExtractionTimeout = null; // Таймер для дебаунсинга извлечения цветов
+    let pendingCoverUrl = null; // URL обложки, ожидающей обработки
 
     // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
     function createVisualizer() {
@@ -545,18 +547,54 @@
         }
     }
 
-    // Получение двух доминирующих цветов из изображения
+    // Кеш для результатов извлечения цветов (по URL изображения) - доступен глобально для отладки
+    window.colorCache = new Map();
+    const colorCache = window.colorCache;
+    
+    // Статистика производительности (для отладки) - доступна глобально
+    window.performanceStats = {
+        colorExtractions: 0,
+        totalTime: 0,
+        maxTime: 0,
+        minTime: Infinity,
+        cacheHits: 0
+    };
+    const performanceStats = window.performanceStats;
+    
+    // Функция для логирования производительности
+    function logPerformance(operation, duration) {
+        if (window.DEBUG_PERFORMANCE) {
+            console.log(`[PERF] ${operation}: ${duration.toFixed(2)}ms`);
+        }
+    }
+    
+    // Получение двух доминирующих цветов из изображения (ОПТИМИЗИРОВАНО)
     function getDominantColors(image) {
         return new Promise((resolve, reject) => {
+            const startTime = performance.now();
+            
             try {
                 if (!image || !image.complete || image.naturalWidth === 0) {
                     reject(new Error('Изображение не загружено'));
                     return;
                 }
 
+                // Проверяем кеш
+                const cacheKey = image.src.split('?')[0]; // URL без параметров
+                if (colorCache.has(cacheKey)) {
+                    performanceStats.cacheHits++;
+                    const cachedResult = colorCache.get(cacheKey);
+                    logPerformance('getDominantColors (CACHED)', performance.now() - startTime);
+                    resolve(cachedResult);
+                    return;
+                }
+                
+                performanceStats.colorExtractions++;
+
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                const size = Math.min(200, Math.max(image.naturalWidth, image.naturalHeight));
+                // УМЕНЬШАЕМ размер canvas с 200 до 80 для значительного снижения нагрузки
+                const size = 80; // Было: Math.min(200, Math.max(image.naturalWidth, image.naturalHeight))
                 canvas.width = size;
                 canvas.height = size;
                 
@@ -567,8 +605,9 @@
                 // Группируем похожие цвета для определения доминирующих
                 const colorMap = new Map();
                 
-                // Берем каждый 8-й пиксель для оптимизации
-                for (let i = 0; i < data.length; i += 32) {
+                // УВЕЛИЧИВАЕМ шаг с 32 до 128 (каждый 32-й пиксель вместо каждого 8-го)
+                // Это уменьшит количество обрабатываемых пикселей в 4 раза
+                for (let i = 0; i < data.length; i += 128) {
                     const alpha = data[i + 3];
                     if (alpha > 10) {
                         const r = data[i];
@@ -612,260 +651,134 @@
                     };
                 });
                 
-                // Фильтруем серые цвета (разница между max и min каналами < 30)
-                const nonGrayColors = colors.filter(c => !isColorGray(c.r, c.g, c.b, 30));
+                // УПРОЩЕННАЯ фильтрация - один проход вместо множественных filter
+                const filteredColors = [];
+                const nonGrayColors = [];
+                const lightColors = [];
                 
-                // Используем несерые цвета, если их достаточно, иначе все
+                // Один проход для фильтрации и сортировки
+                for (const color of colors) {
+                    if (!isColorGray(color.r, color.g, color.b, 30)) {
+                        nonGrayColors.push(color);
+                        if (color.luminance >= 100) {
+                            lightColors.push(color);
+                        }
+                    }
+                }
+                
+                // Используем несерые цвета, если их достаточно
                 const colorsToFilter = nonGrayColors.length >= 2 ? nonGrayColors : colors;
                 
-                // Фильтруем только светлые цвета (яркость >= 100) для акцентных цветов
-                const lightColors = colorsToFilter.filter(c => c.luminance >= 100);
+                // Сортируем по количеству пикселей (убывание) - один раз
+                colorsToFilter.sort((a, b) => b.count - a.count);
                 
-                // Если светлых цветов недостаточно, используем цвета с яркостью >= 70 (но не серые)
-                let filteredColors = lightColors.length >= 2 ? lightColors : colorsToFilter.filter(c => c.luminance >= 70 && !isColorGray(c.r, c.g, c.b, 30));
-                
-                // Если все равно недостаточно, используем цвета с яркостью >= 50 (но не серые)
-                if (filteredColors.length < 2) {
-                    filteredColors = colorsToFilter.filter(c => c.luminance >= 50 && !isColorGray(c.r, c.g, c.b, 30));
+                // Берем первый доминирующий цвет (предпочитаем светлые)
+                let firstColor = colorsToFilter[0];
+                if (lightColors.length > 0) {
+                    lightColors.sort((a, b) => b.count - a.count);
+                    firstColor = lightColors[0];
                 }
                 
-                // Если и их мало, используем все не черные и не серые
-                if (filteredColors.length < 2) {
-                    filteredColors = colorsToFilter.filter(c => c.luminance >= 30 && !isColorGray(c.r, c.g, c.b, 30));
-                }
+                // Для второго цвета ищем контрастный цвет - УПРОЩЕННЫЙ алгоритм (один проход вместо множественных filter)
+                let secondColor = colorsToFilter[1] || colorsToFilter[0];
                 
-                // Если совсем нет подходящих, используем несерые цвета
-                if (filteredColors.length === 0) {
-                    filteredColors = colorsToFilter.length > 0 ? colorsToFilter : colors;
-                }
-                
-                // Сортируем по количеству пикселей (убывание)
-                filteredColors.sort((a, b) => b.count - a.count);
-                
-                // Берем первый доминирующий СВЕТЛЫЙ цвет
-                let firstColor = filteredColors[0];
-                
-                // Предпочитаем светлые цвета (яркость >= 100)
-                const veryLightColors = filteredColors.filter(c => c.luminance >= 100);
-                if (veryLightColors.length > 0) {
-                    firstColor = veryLightColors[0];
-                }
-                
-                // Для второго цвета ищем СВЕТЛЫЙ цвет с ДРУГИМ оттенком
-                let secondColor = filteredColors[1] || filteredColors[0];
-                
-                if (filteredColors.length > 1) {
+                if (colorsToFilter.length > 1) {
                     const firstHue = firstColor.hue;
-                    const minHueDifference = 30; // Минимальная разница в оттенке (градусы)
-                    const minContrast = 120; // Минимальное общее расстояние для хорошего контраста
-                    
-                    // Если первый цвет красный/розовый, второй должен быть из другой части спектра
                     const isFirstRedPink = isRedOrPink(firstHue);
+                    let bestSecondColor = null;
+                    let bestContrast = 0;
                     
-                    // Ищем светлые цвета с другим оттенком
-                    // Если первый цвет красный/розовый, второй НЕ должен быть красным/розовым
-                    let lightColorsWithDifferentHue = filteredColors.filter(c => {
-                        if (c === firstColor) return false;
+                    // Один проход по цветам для поиска лучшего контрастного (максимум 20 цветов)
+                    for (let i = 0; i < Math.min(colorsToFilter.length, 20); i++) {
+                        const candidate = colorsToFilter[i];
+                        if (candidate === firstColor) continue;
                         
-                        // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                        if (isFirstRedPink && isRedOrPink(c.hue)) {
-                            return false;
-                        }
+                        // Запрещаем сочетание красного/розового с красным/розовым
+                        if (isFirstRedPink && isRedOrPink(candidate.hue)) continue;
                         
                         // Если первый красный/розовый, второй должен быть из противоположной части спектра
                         if (isFirstRedPink) {
-                            // Требуем минимум 90 градусов разницы для второго цвета
-                            const hueDiff = Math.abs(c.hue - firstHue);
+                            const hueDiff = Math.abs(candidate.hue - firstHue);
                             const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            if (actualHueDiff < 90) {
-                                return false; // Слишком близко к красному/розовому
-                            }
+                            if (actualHueDiff < 90) continue;
                         }
                         
-                        const hueDiff = Math.abs(c.hue - firstHue);
+                        // Вычисляем контраст
+                        const contrast = colorDistance(firstColor, candidate);
+                        const hueDiff = Math.abs(candidate.hue - firstHue);
                         const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
                         
-                        return c.luminance >= 100 && actualHueDiff >= minHueDifference;
-                    });
+                        // Предпочитаем светлые цвета с хорошим контрастом и разницей в оттенке
+                        if (candidate.luminance >= 100 && actualHueDiff >= 30 && contrast > bestContrast) {
+                            bestContrast = contrast;
+                            bestSecondColor = candidate;
+                        }
+                    }
                     
-                    if (lightColorsWithDifferentHue.length > 0) {
-                        // Выбираем наиболее контрастный из светлых цветов с другим оттенком
-                        lightColorsWithDifferentHue.sort((a, b) => {
-                            return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                        });
-                        secondColor = lightColorsWithDifferentHue[0];
-                        console.log('Найден светлый цвет с другим оттенком:', { hue: secondColor.hue, firstHue: firstHue });
-                    } else {
-                        // Если не нашли светлых с другим оттенком, ищем любой светлый цвет с хорошим контрастом
-                        // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                        const lightContrasting = filteredColors.filter(c => {
-                            if (c === firstColor) return false;
+                    // Если не нашли идеальный, берем любой контрастный (второй проход)
+                    if (!bestSecondColor) {
+                        for (let i = 1; i < Math.min(colorsToFilter.length, 10); i++) {
+                            const candidate = colorsToFilter[i];
+                            if (candidate === firstColor) continue;
+                            if (isFirstRedPink && isRedOrPink(candidate.hue)) continue;
                             
-                            // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                            if (isFirstRedPink && isRedOrPink(c.hue)) {
-                                return false;
-                            }
-                            
-                            // Если первый красный/розовый, второй должен быть из противоположной части спектра
-                            if (isFirstRedPink) {
-                                const hueDiff = Math.abs(c.hue - firstHue);
-                                const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                if (actualHueDiff < 90) {
-                                    return false; // Слишком близко к красному/розовому
-                                }
-                            }
-                            
-                            const hueDiff = Math.abs(c.hue - firstHue);
-                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            return c.luminance >= 100 && actualHueDiff >= 15 && colorDistance(firstColor, c) >= minContrast;
-                        });
-                        
-                        if (lightContrasting.length > 0) {
-                            lightContrasting.sort((a, b) => {
-                                return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                            });
-                            secondColor = lightContrasting[0];
-                            console.log('Найден светлый контрастный цвет');
-                        } else {
-                            // Ищем наиболее контрастный светлый цвет среди всех
-                            // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                            const allLight = filteredColors.filter(c => {
-                                if (c.luminance < 100 || c === firstColor) return false;
-                                // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                                if (isFirstRedPink && isRedOrPink(c.hue)) {
-                                    return false;
-                                }
-                                // Если первый красный/розовый, второй должен быть из противоположной части спектра
-                                if (isFirstRedPink) {
-                                    const hueDiff = Math.abs(c.hue - firstHue);
-                                    const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                    if (actualHueDiff < 90) {
-                                        return false; // Слишком близко к красному/розовому
-                                    }
-                                }
-                                return true;
-                            });
-                            if (allLight.length > 0) {
-                                allLight.sort((a, b) => {
-                                    return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                                });
-                                secondColor = allLight[0];
-                                console.log('Выбран наиболее контрастный светлый цвет');
-                            } else {
-                                // В крайнем случае ищем любой цвет с хорошим контрастом (но не красный/розовый если первый красный/розовый)
-                                let bestContrast = 0;
-                                let bestColor = filteredColors[1] || filteredColors[0];
-                                
-                                for (let i = 1; i < Math.min(filteredColors.length, 15); i++) {
-                                    const candidate = filteredColors[i];
-                                    
-                                    // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                                    if (isFirstRedPink && isRedOrPink(candidate.hue)) {
-                                        continue;
-                                    }
-                                    
-                                    // Если первый красный/розовый, второй должен быть из противоположной части спектра
-                                    if (isFirstRedPink) {
-                                        const hueDiff = Math.abs(candidate.hue - firstHue);
-                                        const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                        if (actualHueDiff < 90) {
-                                            continue; // Слишком близко к красному/розовому
-                                        }
-                                    }
-                                    
-                                    const distance = colorDistance(firstColor, candidate);
-                                    
-                                    if (distance > bestContrast) {
-                                        bestContrast = distance;
-                                        bestColor = candidate;
-                                    }
-                                }
-                                
-                                secondColor = bestColor;
-                                console.log('Выбран наиболее контрастный цвет из доступных');
+                            const contrast = colorDistance(firstColor, candidate);
+                            if (contrast > bestContrast) {
+                                bestContrast = contrast;
+                                bestSecondColor = candidate;
                             }
                         }
                     }
                     
-                    // Финальная проверка: убеждаемся, что цвета действительно разные
-                    const finalHueDiff = Math.abs(secondColor.hue - firstHue);
-                    const actualFinalHueDiff = finalHueDiff > 180 ? 360 - finalHueDiff : finalHueDiff;
+                    if (bestSecondColor) {
+                        secondColor = bestSecondColor;
+                    }
                     
-                    if (actualFinalHueDiff < 20 && filteredColors.length > 2) {
-                        // Если оттенки слишком похожи, ищем цвет в другой части спектра
-                        const oppositeHue = (firstHue + 180) % 360;
-                        const colorsNearOpposite = filteredColors.filter(c => {
-                            if (c === firstColor) return false;
-                            
-                            // СТРОГО запрещаем сочетание красного/розового с красным/розовым
-                            if (isFirstRedPink && isRedOrPink(c.hue)) {
-                                return false;
+                    // Финальная проверка: запрещаем сочетание красного/розового с красным/розовым
+                    if (isRedOrPink(firstColor.hue) && isRedOrPink(secondColor.hue)) {
+                        // Ищем альтернативный второй цвет
+                        for (let i = 1; i < Math.min(colorsToFilter.length, 10); i++) {
+                            const candidate = colorsToFilter[i];
+                            if (candidate === firstColor) continue;
+                            if (!isRedOrPink(candidate.hue)) {
+                                secondColor = candidate;
+                                break;
                             }
-                            
-                            // Если первый красный/розовый, второй должен быть из противоположной части спектра
-                            if (isFirstRedPink) {
-                                const hueDiff = Math.abs(c.hue - firstHue);
-                                const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                if (actualHueDiff < 90) {
-                                    return false; // Слишком близко к красному/розовому
-                                }
-                            }
-                            
-                            const hueDiff = Math.abs(c.hue - oppositeHue);
-                            const actualDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            return actualDiff < 60 && c.luminance >= 70;
-                        });
-                        
-                        if (colorsNearOpposite.length > 0) {
-                            colorsNearOpposite.sort((a, b) => b.luminance - a.luminance);
-                            secondColor = colorsNearOpposite[0];
-                            console.log('Выбран цвет с противоположным оттенком для лучшего контраста');
                         }
                     }
                 }
                 
-                // Финальная проверка: запрещаем сочетание красного/розового с красным/розовым
-                const isFirstRedPinkFinal = isRedOrPink(firstColor.hue);
-                const isSecondRedPinkFinal = isRedOrPink(secondColor.hue);
-                
-                if (isFirstRedPinkFinal && isSecondRedPinkFinal) {
-                    // Если оба цвета красные/розовые, ищем альтернативный второй цвет
-                    const alternativeColors = filteredColors.filter(c => {
-                        if (c === firstColor) return false;
-                        return !isRedOrPink(c.hue);
-                    });
-                    
-                    if (alternativeColors.length > 0) {
-                        // Выбираем наиболее контрастный из не красных/розовых
-                        alternativeColors.sort((a, b) => {
-                            return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                        });
-                        secondColor = alternativeColors[0];
-                        console.log('Заменен второй цвет - запрещено сочетание красного/розового с красным/розовым');
-                    } else {
-                        // Если нет альтернатив, выбираем цвет с максимальной разницей в оттенке
-                        const nonRedPink = filteredColors.filter(c => {
-                            if (c === firstColor) return false;
-                            const hueDiff = Math.abs(c.hue - firstColor.hue);
-                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            return actualHueDiff > 60; // Минимум 60 градусов разницы
-                        });
-                        
-                        if (nonRedPink.length > 0) {
-                            nonRedPink.sort((a, b) => {
-                                return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                            });
-                            secondColor = nonRedPink[0];
-                            console.log('Выбран цвет с максимальным отличием от красного/розового');
-                        }
-                    }
-                }
-                
-                console.log('Извлечены два доминирующих цвета:', {firstColor, secondColor, contrast: colorDistance(firstColor, secondColor)});
-                resolve({
+                const result = {
                     first: `rgba(${firstColor.r}, ${firstColor.g}, ${firstColor.b}, 0.85)`,
                     second: `rgba(${secondColor.r}, ${secondColor.g}, ${secondColor.b}, 0.85)`
-                });
+                };
+                
+                // Сохраняем в кеш (максимум 50 записей для экономии памяти)
+                if (colorCache.size >= 50) {
+                    const firstKey = colorCache.keys().next().value;
+                    colorCache.delete(firstKey);
+                }
+                colorCache.set(cacheKey, result);
+                
+                // Замер производительности
+                const duration = performance.now() - startTime;
+                performanceStats.totalTime += duration;
+                performanceStats.maxTime = Math.max(performanceStats.maxTime, duration);
+                performanceStats.minTime = Math.min(performanceStats.minTime, duration);
+                
+                logPerformance('getDominantColors', duration);
+                
+                // Выводим статистику каждые 10 извлечений
+                if (performanceStats.colorExtractions % 10 === 0) {
+                    const avgTime = performanceStats.totalTime / performanceStats.colorExtractions;
+                    console.log(`[PERF STATS] Извлечений: ${performanceStats.colorExtractions}, ` +
+                              `Кеш попаданий: ${performanceStats.cacheHits}, ` +
+                              `Среднее время: ${avgTime.toFixed(2)}ms, ` +
+                              `Макс: ${performanceStats.maxTime.toFixed(2)}ms, ` +
+                              `Мин: ${performanceStats.minTime.toFixed(2)}ms`);
+                }
+                
+                resolve(result);
             } catch (error) {
                 console.error('Ошибка в getDominantColors:', error);
                 reject(error);
@@ -1431,32 +1344,63 @@
                     return;
                 }
                 
-                // Извлекаем два доминирующих цвета из изображения
-                getDominantColors(loadingCover)
-                    .then(colors => {
-                        console.log('Применяем цвета из изображения:', colors);
-                        
-                        // Если включены автоматические цвета, применяем их
-                        if (currentConfig.auto_colors_enabled) {
-                            applyAutoColors(colors);
-                        } else {
-                            // Используем первый цвет для подсветки обложки с плавным переходом
-                            updateAmbientLight(colors.first, !isFirstLoad);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Не удалось извлечь цвета из изображения:', error);
-                        // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
-                getDominantColor(loadingCover)
-                    .then(color => {
-                                if (!currentConfig.auto_colors_enabled) {
-                        updateAmbientLight(color, !isFirstLoad);
+                // Извлекаем два доминирующих цвета из изображения (с дебаунсингом для оптимизации)
+                // Отменяем предыдущий таймер, если есть
+                if (colorExtractionTimeout) {
+                    clearTimeout(colorExtractionTimeout);
+                }
+                
+                // Выполняем извлечение цветов асинхронно через небольшой таймаут, чтобы не блокировать UI
+                colorExtractionTimeout = setTimeout(() => {
+                    colorExtractionTimeout = null;
+                    
+                    // Проверяем, что загрузка все еще актуальна
+                    if (activeCoverLoadId !== loadId) {
+                        return; // Эта загрузка уже устарела
+                    }
+                    
+                    // Используем requestIdleCallback для выполнения в свободное время, или setTimeout
+                    const extractColors = () => {
+                        getDominantColors(loadingCover)
+                            .then(colors => {
+                                // Проверяем еще раз, что загрузка актуальна
+                                if (activeCoverLoadId !== loadId) return;
+                                
+                                console.log('Применяем цвета из изображения:', colors);
+                                
+                                // Если включены автоматические цвета, применяем их
+                                if (currentConfig.auto_colors_enabled) {
+                                    applyAutoColors(colors);
+                                } else {
+                                    // Используем первый цвет для подсветки обложки с плавным переходом
+                                    updateAmbientLight(colors.first, !isFirstLoad);
                                 }
-                    })
-                            .catch(() => {
-                                // Оставляем предыдущий цвет подсветки
+                            })
+                            .catch(error => {
+                                console.error('Не удалось извлечь цвета из изображения:', error);
+                                // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
+                                if (activeCoverLoadId !== loadId) return;
+                                
+                                getDominantColor(loadingCover)
+                                    .then(color => {
+                                        if (activeCoverLoadId !== loadId) return;
+                                        if (!currentConfig.auto_colors_enabled) {
+                                            updateAmbientLight(color, !isFirstLoad);
+                                        }
+                                    })
+                                    .catch(() => {
+                                        // Оставляем предыдущий цвет подсветки
+                                    });
                             });
-                    });
+                    };
+                    
+                    // Используем requestIdleCallback если доступен, иначе setTimeout
+                    if (window.requestIdleCallback) {
+                        requestIdleCallback(extractColors, { timeout: 100 });
+                    } else {
+                        setTimeout(extractColors, 0);
+                    }
+                }, 50); // Небольшая задержка для группировки быстрых переключений
                 
                 // Плавный переход между обложками (crossfade)
                 // Если это первая загрузка, просто делаем изображение видимым

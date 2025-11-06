@@ -1,6 +1,6 @@
 #define AppName "NowPlay"
-#define AppVersion "1.0.0"
-#define AppPublisher "Your Name"
+#define AppVersion "2.1.0"
+#define AppPublisher "pluwaker"
 #define AppURL "https://github.com/your-username/NowPlay"
 #define AppExeName "NowPlay.exe"
 
@@ -35,7 +35,7 @@ Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescrip
 
 [Files]
 ; Копируем все файлы из dist/NowPlay/
-Source: "H:\ВКР\dist\NowPlay\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "H:\ВКР\NowPlay\dist\NowPlay\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\icon.ico"
@@ -51,7 +51,7 @@ function InitializeSetup(): Boolean;
 begin
   Result := True;
   // Проверяем наличие собранного приложения
-  if not DirExists('H:\ВКР\dist\NowPlay') then
+  if not DirExists('H:\ВКР\NowPlay\dist\NowPlay') then
   begin
     MsgBox('Ошибка: Папка dist\NowPlay\ не найдена!' + #13#10 + 
            'Сначала соберите приложение: pyinstaller build.spec', 

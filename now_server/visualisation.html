@@ -220,6 +220,9 @@
             height: 40px;
             margin: 15px 0;
             gap: 3px;
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.3s ease-in, transform 0.3s ease-in;
         }
 
         .visualizer-bar {
@@ -237,6 +240,18 @@
 
         .visualizer.enabled .visualizer-bar {
             animation-play-state: running;
+        }
+
+        /* Плавное исчезновение при выключении */
+        .visualizer.fade-out {
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+            pointer-events: none;
+        }
+
+        .visualizer.fade-out .visualizer-bar {
+            animation-play-state: paused;
         }
 
         /* CSS анимация визуализатора - хаотичное движение */
@@ -1175,16 +1190,44 @@
 
     // Запуск/остановка CSS анимации визуализатора (0% CPU нагрузка!)
     function animateVisualizer() {
-        if (!currentConfig || currentConfig.wave_enabled !== false) {
-            visualizer.classList.add('enabled');
-        } else {
+        // Проверяем настройки первым делом
+        if (currentConfig && currentConfig.wave_enabled === false) {
             stopVisualizer();
+            return;
+        }
+        
+        // Убираем класс fade-out
+        visualizer.classList.remove('fade-out');
+        
+        // Показываем визуализатор, если он скрыт
+        const wasHidden = visualizer.style.display === 'none';
+        if (wasHidden) {
+            visualizer.style.display = '';
+            // Используем requestAnimationFrame для гарантии применения display
+            requestAnimationFrame(() => {
+                visualizer.classList.add('enabled');
+            });
+        } else {
+            // Если уже видим, сразу добавляем класс
+            visualizer.classList.add('enabled');
         }
     }
 
-    // Остановка анимации (CSS анимация управляется через класс)
+    // Остановка анимации с плавным исчезновением
     function stopVisualizer() {
+        // Убираем класс enabled, чтобы остановить основную анимацию
         visualizer.classList.remove('enabled');
+        
+        // Если визуализатор видим, добавляем класс fade-out для плавного исчезновения
+        if (visualizer.style.display !== 'none') {
+            visualizer.classList.add('fade-out');
+            
+            // После завершения анимации скрываем визуализатор полностью
+            setTimeout(() => {
+                visualizer.style.display = 'none';
+                visualizer.classList.remove('fade-out');
+            }, 400); // Длительность анимации исчезновения
+        }
     }
 
     // Установка статуса

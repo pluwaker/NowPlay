@@ -151,6 +151,25 @@
             flex: 1;
             min-width: 0;
             overflow: hidden; /* Убираем прокрутку текста */
+            transition: all 0.3s ease;
+        }
+
+        /* Эффект стекла для track-section - темное */
+        .glass-effect.glass-dark .track-section {
+            background: rgba(40, 40, 40, 0.65);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        }
+
+        /* Эффект стекла для track-section - белое */
+        .glass-effect.glass-light .track-section {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
         .track-title {
@@ -189,6 +208,7 @@
             margin-bottom: 50px;
             min-height: auto;
             overflow: hidden; /* Убираем прокрутку текста */
+            transition: margin-bottom 0.4s ease;
         }
 
         .visualizer-section {
@@ -275,6 +295,42 @@
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
             z-index: 2;
             width: 100%;
+            transition: all 0.4s ease;
+        }
+
+        /* Эффект стекла для progress-section - темное */
+        .glass-effect.glass-dark .progress-section {
+            background: rgba(40, 40, 40, 0.65);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        }
+
+        /* Эффект стекла для progress-section - белое */
+        .glass-effect.glass-light .progress-section {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Компактный режим progress-section (внутри track-section) */
+        .track-section .progress-section {
+            padding: 12px 15px;
+            box-shadow: none;
+            background: transparent;
+            margin-top: 8px;
+        }
+
+        .track-section .progress-section .progress-bar {
+            height: 12px;
+            margin-bottom: 6px;
+        }
+
+        .track-section .progress-section .time-display {
+            font-size: 14px;
         }
 
         .progress-bar {
@@ -444,6 +500,9 @@
     const statusText = document.getElementById('status');
     const statusSection = document.getElementById('statusSection');
     const ambientLight = document.getElementById('ambientLight');
+    const progressSection = document.querySelector('.progress-section');
+    const trackSection = document.querySelector('.track-section');
+    const trackInfo = document.querySelector('.track-info');
 
     // Переменные состояния
     let ws;
@@ -517,6 +576,19 @@
             visualizerSection.classList.remove('fade-out');
         }
         
+        // Перемещаем progress-section обратно под top-row (если он был внутри track-section)
+        if (progressSection && trackSection && progressSection.parentElement === trackSection) {
+            const topRow = trackSection.closest('.top-row');
+            if (topRow && topRow.parentElement) {
+                topRow.parentElement.insertBefore(progressSection, topRow.nextSibling);
+            }
+        }
+        
+        // Восстанавливаем margin-bottom у track-info для визуализатора
+        if (trackInfo) {
+            trackInfo.style.marginBottom = '50px';
+        }
+        
         // Показываем визуализатор, если он скрыт
         const wasHidden = visualizer.style.display === 'none' || (visualizerSection && visualizerSection.style.display === 'none');
         if (wasHidden) {
@@ -543,13 +615,17 @@
         const visualizerSection = visualizer.closest('.visualizer-section');
         
         // Если визуализатор видим, добавляем класс fade-out для плавного исчезновения
-        if (visualizer.style.display !== 'none') {
+        const isVisible = visualizer.style.display !== 'none' && 
+                         (visualizerSection ? visualizerSection.style.display !== 'none' : true) &&
+                         window.getComputedStyle(visualizer).display !== 'none';
+        
+        if (isVisible) {
             visualizer.classList.add('fade-out');
             if (visualizerSection) {
                 visualizerSection.classList.add('fade-out');
             }
             
-            // После завершения анимации скрываем визуализатор полностью
+            // После завершения анимации скрываем визуализатор полностью и перемещаем progress-section
             setTimeout(() => {
                 visualizer.style.display = 'none';
                 visualizer.classList.remove('fade-out');
@@ -557,7 +633,27 @@
                     visualizerSection.style.display = 'none';
                     visualizerSection.classList.remove('fade-out');
                 }
+                
+                // Перемещаем progress-section внутрь track-section (компактный режим)
+                if (progressSection && trackSection && progressSection.parentElement !== trackSection) {
+                    trackSection.appendChild(progressSection);
+                }
+                
+                // Уменьшаем margin-bottom у track-info, так как визуализатор скрыт
+                if (trackInfo) {
+                    trackInfo.style.marginBottom = '0px';
+                }
             }, 400); // Длительность анимации исчезновения
+        } else {
+            // Если визуализатор уже скрыт, сразу перемещаем progress-section
+            if (progressSection && trackSection && progressSection.parentElement !== trackSection) {
+                trackSection.appendChild(progressSection);
+            }
+            
+            // Уменьшаем margin-bottom у track-info
+            if (trackInfo) {
+                trackInfo.style.marginBottom = '0px';
+            }
         }
     }
 
@@ -1356,6 +1452,17 @@
                 animateVisualizer();
             } else {
                 stopVisualizer();
+            }
+
+            // Управление эффектом стекла
+            if (config.glass_effect_enabled) {
+                player.classList.add('glass-effect');
+                // Применяем тип эффекта (темное или белое)
+                const glassType = config.glass_effect_type || 'dark';
+                player.classList.remove('glass-dark', 'glass-light');
+                player.classList.add(`glass-${glassType}`);
+            } else {
+                player.classList.remove('glass-effect', 'glass-dark', 'glass-light');
             }
         }
     }

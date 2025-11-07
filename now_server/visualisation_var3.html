@@ -159,6 +159,25 @@
             flex-direction: column;
             gap: 15px;
             z-index: 2;
+            transition: all 0.3s ease;
+        }
+
+        /* Эффект стекла для track-section - темное */
+        .glass-effect.glass-dark .track-section {
+            background: rgba(40, 40, 40, 0.65);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        }
+
+        /* Эффект стекла для track-section - белое */
+        .glass-effect.glass-light .track-section {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
         .track-title {
@@ -276,6 +295,25 @@
             padding: 18px 20px;
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
             z-index: 2;
+            transition: all 0.3s ease;
+        }
+
+        /* Эффект стекла для progress-section - темное */
+        .glass-effect.glass-dark .progress-section {
+            background: rgba(40, 40, 40, 0.65);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        }
+
+        /* Эффект стекла для progress-section - белое */
+        .glass-effect.glass-light .progress-section {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
         .progress-bar {
@@ -612,7 +650,7 @@
     }
     
     // Получение двух доминирующих цветов из изображения (ОПТИМИЗИРОВАНО)
-    function getDominantColors(image) {
+    function getDominantColors(image, trackTitle = null, trackArtist = null) {
         return new Promise((resolve, reject) => {
             const startTime = performance.now();
             
@@ -623,7 +661,12 @@
                 }
 
                 // Проверяем кеш
-                const cacheKey = image.src.split('?')[0]; // URL без параметров
+                // Используем комбинацию URL + title + artist для уникальности каждого трека
+                const baseUrl = image.src.split('?')[0]; // URL без параметров
+                const cacheKey = trackTitle && trackArtist 
+                    ? `${baseUrl}|${trackTitle}|${trackArtist}` 
+                    : baseUrl; // Fallback на старый формат для обратной совместимости
+                
                 if (colorCache.has(cacheKey)) {
                     performanceStats.cacheHits++;
                     const cachedResult = colorCache.get(cacheKey);
@@ -1190,7 +1233,9 @@
                     if (activeCover && !activeCover.src.includes('NoCover') && !activeCover.src.includes('/no_cover')) {
                         console.log('Автоматические цвета включены, пересчитываем цвета из текущей обложки');
                         // Пересчитываем цвета из текущей обложки
-                        getDominantColors(activeCover)
+                        const currentTitle = title ? title.textContent : null;
+                        const currentArtist = artist ? artist.textContent : null;
+                        getDominantColors(activeCover, currentTitle, currentArtist)
                             .then(colors => {
                                 console.log('Применяем автоматические цвета из текущей обложки:', colors);
                                 applyAutoColors(colors);
@@ -1245,6 +1290,17 @@
                 animateVisualizer();
             } else {
                 stopVisualizer();
+            }
+
+            // Управление эффектом стекла
+            if (config.glass_effect_enabled) {
+                player.classList.add('glass-effect');
+                // Применяем тип эффекта (темное или белое)
+                const glassType = config.glass_effect_type || 'dark';
+                player.classList.remove('glass-dark', 'glass-light');
+                player.classList.add(`glass-${glassType}`);
+            } else {
+                player.classList.remove('glass-effect', 'glass-dark', 'glass-light');
             }
         }
     }
@@ -1353,6 +1409,10 @@
             const loadId = Date.now() + Math.random();
             activeCoverLoadId = loadId;
             
+            // Сохраняем title и artist для использования в кеше цветов
+            const trackTitle = data.title || title.textContent || null;
+            const trackArtist = data.artist || artist.textContent || null;
+            
             // Определяем, какое изображение будет следующим для загрузки
             const loadingCover = nextCover;
             const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg') || currentCover.src === '/no_cover';
@@ -1404,7 +1464,7 @@
                     
                     // Используем requestIdleCallback для выполнения в свободное время, или setTimeout
                     const extractColors = () => {
-                        getDominantColors(loadingCover)
+                        getDominantColors(loadingCover, trackTitle, trackArtist)
                             .then(colors => {
                                 // Проверяем еще раз, что загрузка актуальна
                                 if (activeCoverLoadId !== loadId) return;

@@ -344,6 +344,60 @@ class SettingsPage(ctk.CTkFrame):
         )
         self.auto_colors_switch.pack(side="right")
 
+        # ========== ОТДЕЛ 1.5: Эффект стекла ==========
+        self.glass_effect_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
+        self.glass_effect_frame.pack(pady=(0, 15), padx=30, fill="x")
+
+        glass_effect_switch_frame = ctk.CTkFrame(self.glass_effect_frame, fg_color="transparent")
+        glass_effect_switch_frame.pack(fill="x", padx=20, pady=(15, 10))
+
+        ctk.CTkLabel(
+            glass_effect_switch_frame,
+            text="Эффект стекла (Glassmorphism)",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.glass_effect_switch_var = ctk.BooleanVar(value=self.config_data.get("glass_effect_enabled", False))
+        self.glass_effect_switch = ctk.CTkSwitch(
+            glass_effect_switch_frame,
+            text="",
+            variable=self.glass_effect_switch_var,
+            command=self.toggle_glass_effect
+        )
+        self.glass_effect_switch.pack(side="right")
+
+        # Выбор типа эффекта стекла (темное/белое)
+        glass_type_frame = ctk.CTkFrame(self.glass_effect_frame, fg_color="transparent")
+        glass_type_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            glass_type_frame,
+            text="Тип эффекта",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        glass_effect_type_value = self.config_data.get("glass_effect_type", "dark")
+        glass_type_display_map = {
+            "dark": "Темное",
+            "light": "Белое"
+        }
+        self.glass_effect_type_var = ctk.StringVar(
+            value=glass_type_display_map.get(glass_effect_type_value, "Темное")
+        )
+        self.glass_effect_type_menu = ctk.CTkOptionMenu(
+            glass_type_frame,
+            values=["Темное", "Белое"],
+            variable=self.glass_effect_type_var,
+            command=self.change_glass_effect_type,
+            width=150
+        )
+        self.glass_effect_type_menu.pack(side="right")
+
+        # Обновляем состояние меню в зависимости от включенности эффекта
+        self.update_glass_effect_menu_state()
+
         # ========== ОТДЕЛ 2: Цвет подложки ==========
         self.background_color_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="#2b2b2b", corner_radius=10)
         self.background_color_frame.pack(pady=(0, 15), padx=30, fill="x")
@@ -944,6 +998,31 @@ class SettingsPage(ctk.CTkFrame):
         self.update_color_buttons_state()
         # Автоматическое сохранение
         self.auto_save_settings()
+
+    def toggle_glass_effect(self):
+        """Переключает эффект стекла"""
+        self.config_data["glass_effect_enabled"] = self.glass_effect_switch_var.get()
+        self.update_glass_effect_menu_state()
+        # Автоматическое сохранение
+        self.auto_save_settings()
+
+    def change_glass_effect_type(self, choice):
+        """Изменяет тип эффекта стекла"""
+        glass_type_map = {
+            "Темное": "dark",
+            "Белое": "light"
+        }
+        self.config_data["glass_effect_type"] = glass_type_map.get(choice, "dark")
+        # Автоматическое сохранение
+        self.auto_save_settings()
+
+    def update_glass_effect_menu_state(self):
+        """Обновляет состояние меню выбора типа эффекта стекла"""
+        is_enabled = self.config_data.get("glass_effect_enabled", False)
+        if is_enabled:
+            self.glass_effect_type_menu.configure(state="normal")
+        else:
+            self.glass_effect_type_menu.configure(state="disabled")
 
     def update_color_buttons_state(self):
         """Обновляет состояние кнопок цветов в зависимости от режима автоматических цветов"""

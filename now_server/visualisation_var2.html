@@ -54,6 +54,24 @@
             overflow: visible; /* Разрешаем выход подсветки за границы */
         }
 
+        /* Эффект стекла для player-container - темное */
+        .player-container.glass-effect.glass-dark {
+            background: rgba(40, 40, 40, 0.65);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        }
+
+        /* Эффект стекла для player-container - белое */
+        .player-container.glass-effect.glass-light {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(25px) saturate(150%);
+            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
         .player-container.loaded {
             opacity: 1;
             transform: translateY(0);
@@ -1266,6 +1284,17 @@
                 animateVisualizer();
             } else {
                 stopVisualizer();
+            }
+
+            // Управление эффектом стекла
+            if (config.glass_effect_enabled) {
+                player.classList.add('glass-effect');
+                // Применяем тип эффекта (темное или белое)
+                const glassType = config.glass_effect_type || 'dark';
+                player.classList.remove('glass-dark', 'glass-light');
+                player.classList.add(`glass-${glassType}`);
+            } else {
+                player.classList.remove('glass-effect', 'glass-dark', 'glass-light');
             }
         }
     }

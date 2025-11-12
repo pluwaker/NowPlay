@@ -5,10 +5,15 @@ from tkinter import messagebox
 import socket
 import os
 import tkinter
-from now_server.now import run_server
+from pathlib import Path
+import sys
 import urllib.request
 import urllib.error
 import json
+
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+from now_server.now import (run_server)
 
 def find_free_port(start_port=8080, max_port=9000):
     for port in range(start_port, max_port):

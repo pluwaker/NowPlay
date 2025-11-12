@@ -5,11 +5,35 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="38ef67e5-b008-4d2e-845d-b2e9851ddd32" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.github/workflows/build-release.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/nowplay.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/nowplay.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MINIFY_HTML_INSTRUCTIONS.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OPTIMIZATION_CPU_HTML.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OPTIMIZATION_HTML.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/OPTIMIZATION_RECOMMENDATIONS.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build_optimized.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/config_manager.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/icon.ico" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.spec" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/minify_html.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/common.js" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/common.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/cover_fetcher.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/cover_fetcher.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var2.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3_horizontal.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/nuitka-crash-report.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/setup_inno.iss" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -19,21 +43,21 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "pluwaker"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;pluwaker&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/pluwaker/NowPlay.git",
-    "accountId": "e8424930-457a-4348-8b3a-d96e44487614"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/pluwaker/NowPlay.git&quot;,
+    &quot;accountId&quot;: &quot;e8424930-457a-4348-8b3a-d96e44487614&quot;
   }
-}]]></component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 2
-}]]></component>
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2
+}</component>
   <component name="ProjectId" id="35FzAczXoQ1nFhp0VXmtxPxDcKe" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -41,10 +65,13 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
-    "Python.main.executor": "Run",
+    "Python.app.executor": "Run",
+    "Python.main.executor": "Debug",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "#1 on optimisation",
+    "ignore.virus.scanning.warn.message": "true",
+    "last_opened_file_path": "H:/VKR/NowPlay",
     "settings.editor.selected.configurable": "com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable"
   }
 }]]></component>

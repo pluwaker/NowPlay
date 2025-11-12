@@ -10,9 +10,8 @@ import json
 import threading
 import colorsys
 
-# Добавляем путь к корневой папке для импорта config_manager
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from config_manager import config_manager
+# Импорт config_manager из новой структуры
+from src.config.config_manager import config_manager
 
 
 class ModernColorPicker(ctk.CTkToplevel):

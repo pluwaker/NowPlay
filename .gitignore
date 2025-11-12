@@ -1,27 +1,45 @@
-songinfo/cover.png
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Build artifacts
+/build
 /dist
-/build
-/build
-/build
-/build
-/build
-songinfo/cover.png
+/main.build
+/main.dist
+*.spec
+*.pyc
+
+# Release files
 /release
-RELEASE_GUIDE.md
-setup_inno.iss
+*.exe
+*.msi
+*.dmg
+
+# IDE
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Configuration (user-specific)
 songinfo/cover.png
-VKR_PLAN.md
-VKR_PLAN_TABLE.md
-PERFORMANCE_DEBUG.md
-package_release.py
-BUILD_OPTIMIZATION.md
-BUILD_INSTRUCTIONS.md
-/build
-/build/build
-build/build/Analysis-00.toc
-build/build/base_library.zip
-build/build/EXE-00.toc
-build/build/NowPlay.pkg
-build/build/PKG-00.toc
-build/build/PYZ-00.pyz
-build/build/PYZ-00.toc
+songinfo/track_info.txt
+config.json
+
+# Reports and logs
+reports/*.xml
+*.log
+
+# Temporary files
+*.tmp
+*.temp

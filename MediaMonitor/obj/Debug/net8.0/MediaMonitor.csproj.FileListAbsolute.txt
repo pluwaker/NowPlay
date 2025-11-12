@@ -1,0 +1,6 @@
+H:\VKR\NowPlay\MediaMonitor\obj\Debug\net8.0\MediaMonitor.GeneratedMSBuildEditorConfig.editorconfig
+H:\VKR\NowPlay\MediaMonitor\obj\Debug\net8.0\MediaMonitor.AssemblyInfoInputs.cache
+H:\VKR\NowPlay\MediaMonitor\obj\Debug\net8.0\MediaMonitor.AssemblyInfo.cs
+H:\VKR\NowPlay\MediaMonitor\obj\Debug\net8.0\MediaMonitor.csproj.CoreCompileInputs.cache
+H:\VKR\NowPlay\MediaMonitor\obj\Debug\net8.0\MediaMonitor.sourcelink.json
+H:\VKR\NowPlay\MediaMonitor\obj\Debug\net8.0\MediaMonitor.csproj.AssemblyReference.cache

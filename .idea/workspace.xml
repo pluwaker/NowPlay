@@ -4,37 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="38ef67e5-b008-4d2e-845d-b2e9851ddd32" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MINIFY_HTML_INSTRUCTIONS.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/OPTIMIZATION_CPU_HTML.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/OPTIMIZATION_HTML.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/OPTIMIZATION_RECOMMENDATIONS.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.spec" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_optimized.spec" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/config.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/config_manager.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/icon.ico" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.spec" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/minify_html.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/common.js" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/common.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/cover_fetcher.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/cover_fetcher.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var2.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var2.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3_horizontal.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nuitka-crash-report.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup_inno.iss" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
-    </list>
+    <list default="true" id="38ef67e5-b008-4d2e-845d-b2e9851ddd32" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

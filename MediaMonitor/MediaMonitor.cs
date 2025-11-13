@@ -16,11 +16,8 @@ namespace NowMediaMonitor
     {
         public CurrentMediaState State = new();
 
+        private GlobalSystemMediaTransportControlsSessionManager? sessionManager;
         private GlobalSystemMediaTransportControlsSession? currentSession;
-        private CancellationTokenSource? trackTaskCTS;
-
-        private DateTime lastUpdate = DateTime.MinValue;
-        private readonly double UPDATE_COOLDOWN = 0.1;
 
         private readonly HttpClient httpClient = new HttpClient();
         private readonly string pythonServerUrl = "http://localhost:8080";
@@ -29,7 +26,11 @@ namespace NowMediaMonitor
         private double lastPosition = 0;
         private bool lastIsPlaying = false;
         private string selectedSource = "";
-        private bool hasLoggedNoSession = false; // Чтобы не спамить логами
+        
+        // Для debouncing обновлений
+        private System.Threading.Timer? debounceTimer;
+        private bool pendingUpdate = false;
+        private readonly SemaphoreSlim updateLock = new SemaphoreSlim(1, 1);
 
         public async Task Start()
         {
@@ -51,22 +52,219 @@ namespace NowMediaMonitor
             // Загружаем выбранный источник из конфига
             await LoadSelectedSource();
             
-            Console.WriteLine("🎵 Начинаем мониторинг медиа...");
-
-            while (true)
+            // Инициализируем SessionManager один раз
+            await InitializeSessionManager();
+            
+            // Создаем debounce timer
+            debounceTimer = new System.Threading.Timer(OnDebounceTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+            
+            Console.WriteLine("🎵 Мониторинг медиа активен (event-driven режим)");
+            
+            // Держим приложение запущенным
+            await Task.Delay(Timeout.Infinite);
+        }
+        
+        private async Task InitializeSessionManager()
+        {
+            try
+            {
+                sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                
+                // Подписываемся на изменения сессий
+                sessionManager.SessionsChanged += OnSessionsChanged;
+                
+                // Получаем начальную сессию
+                await UpdateCurrentSession();
+                
+                Console.WriteLine("✅ Event-driven мониторинг инициализирован");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Ошибка инициализации: {ex.Message}");
+                throw;
+            }
+        }
+        
+        private async void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
+        {
+            try
+            {
+                await UpdateCurrentSession();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка при смене сессии: {ex.Message}");
+            }
+        }
+        
+        private async Task UpdateCurrentSession()
+        {
+            // Отписываемся от старой сессии
+            if (currentSession != null)
             {
                 try
                 {
-                    await Tick();
+                    currentSession.MediaPropertiesChanged -= OnMediaPropertiesChanged;
+                    currentSession.PlaybackInfoChanged -= OnPlaybackInfoChanged;
+                    currentSession.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Ошибка monitor: {ex.Message}");
-                }
-
-                // Увеличиваем интервал до 2 секунд для снижения нагрузки
-                await Task.Delay(2000);
+                catch { }
             }
+            
+            // Получаем новую сессию
+            currentSession = await GetSessionBySource(sessionManager!);
+            
+            if (currentSession == null)
+            {
+                SetNoPlayback();
+                return;
+            }
+            
+            // Подписываемся на события новой сессии
+            try
+            {
+                currentSession.MediaPropertiesChanged += OnMediaPropertiesChanged;
+                currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
+                currentSession.TimelinePropertiesChanged += OnTimelinePropertiesChanged;
+                
+                // Получаем начальное состояние
+                await UpdateMediaInfo();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка подписки на события: {ex.Message}");
+            }
+        }
+        
+        private void OnMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
+        {
+            try
+            {
+                _ = UpdateMediaInfo();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка обновления медиа: {ex.Message}");
+            }
+        }
+        
+        private void OnPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
+        {
+            try
+            {
+                var playback = sender.GetPlaybackInfo();
+                bool isPlaying = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                
+                if (State.IsPlaying != isPlaying)
+                {
+                    State.IsPlaying = isPlaying;
+                    TriggerDebouncedUpdate();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка обновления playback: {ex.Message}");
+            }
+        }
+        
+        private void OnTimelinePropertiesChanged(GlobalSystemMediaTransportControlsSession sender, TimelinePropertiesChangedEventArgs args)
+        {
+            try
+            {
+                var timeline = sender.GetTimelineProperties();
+                if (timeline != null)
+                {
+                    double position = timeline.Position.TotalSeconds;
+                    double duration = timeline.EndTime.TotalSeconds;
+                    
+                    bool positionJumped = Math.Abs(position - lastPosition) > 3;
+                    
+                    State.Position = position;
+                    State.Duration = duration;
+                    lastPosition = position;
+                    
+                    if (positionJumped || duration != State.Duration)
+                    {
+                        TriggerDebouncedUpdate();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка обновления timeline: {ex.Message}");
+            }
+        }
+        
+        private async Task UpdateMediaInfo()
+        {
+            if (currentSession == null) return;
+            
+            try
+            {
+                var mediaInfo = await currentSession.TryGetMediaPropertiesAsync();
+                var timeline = currentSession.GetTimelineProperties();
+                var playback = currentSession.GetPlaybackInfo();
+
+                string artist = mediaInfo.Artist ?? "Unknown Artist";
+                string title = mediaInfo.Title ?? "Unknown Title";
+                double position = timeline?.Position.TotalSeconds ?? 0;
+                double duration = timeline?.EndTime.TotalSeconds ?? 0;
+                bool isPlaying = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+
+                bool trackChanged = artist != State.Artist || title != State.Title;
+
+                if (trackChanged)
+                {
+                    Console.WriteLine($"🎵 {artist} — {title}");
+                    
+                    State.Artist = artist;
+                    State.Title = title;
+                    State.Position = position;
+                    State.Duration = duration;
+                    State.IsPlaying = isPlaying;
+                    
+                    lastPosition = position;
+                    lastIsPlaying = isPlaying;
+                    
+                    TriggerDebouncedUpdate();
+                }
+                else
+                {
+                    State.Position = position;
+                    State.Duration = duration;
+                    State.IsPlaying = isPlaying;
+                    lastPosition = position;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка получения медиа информации: {ex.Message}");
+            }
+        }
+        
+        private void TriggerDebouncedUpdate()
+        {
+            pendingUpdate = true;
+            debounceTimer?.Change(100, Timeout.Infinite); // Ждем 100мс перед отправкой
+        }
+        
+        private void OnDebounceTimerElapsed(object? state)
+        {
+            if (!pendingUpdate) return;
+            
+            _ = Task.Run(async () =>
+            {
+                await updateLock.WaitAsync();
+                try
+                {
+                    pendingUpdate = false;
+                    await SendToPythonServer();
+                }
+                finally
+                {
+                    updateLock.Release();
+                }
+            });
         }
         
         private async Task LoadSelectedSource()
@@ -152,125 +350,8 @@ namespace NowMediaMonitor
             }
         }
 
-        private async Task Tick()
-        {
-            try
-            {
-                var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-                
-                // Получаем сессию с учетом выбранного источника
-                currentSession = await GetSessionBySource(manager);
 
-                if (currentSession == null)
-                {
-                    // Выводим отладочную информацию только один раз
-                    if (!hasLoggedNoSession)
-                    {
-                        var allSessions = manager.GetSessions();
-                        Console.WriteLine($"⚠️ Сессия не найдена. Всего сессий: {allSessions.Count}");
-                        
-                        if (allSessions.Count > 0)
-                        {
-                            Console.WriteLine($"   Выбранный источник: '{selectedSource}'");
-                            Console.WriteLine("   Доступные сессии:");
-                            foreach (var session in allSessions)
-                            {
-                                try
-                                {
-                                    var appId = session.SourceAppUserModelId;
-                                    var props = await session.TryGetMediaPropertiesAsync();
-                                    Console.WriteLine($"   - {appId}");
-                                    Console.WriteLine($"     Трек: {props.Artist} - {props.Title}");
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"   - Ошибка получения информации: {ex.Message}");
-                                }
-                            }
-                        }
-                        
-                        hasLoggedNoSession = true;
-                    }
-                    
-                    SetNoPlayback();
-                    return;
-                }
-                
-                // Если нашли сессию, сбрасываем флаг
-                hasLoggedNoSession = false;
-            }
-            catch (Exception ex)
-            {
-                // Логируем критические ошибки только один раз
-                if (!hasLoggedNoSession)
-                {
-                    Console.WriteLine($"❌ Критическая ошибка в Tick(): {ex.Message}");
-                    hasLoggedNoSession = true;
-                }
-                SetNoPlayback();
-                return;
-            }
-
-            var mediaInfo = await currentSession.TryGetMediaPropertiesAsync();
-            var timeline = currentSession.GetTimelineProperties();
-            var playback = currentSession.GetPlaybackInfo();
-
-            string artist = mediaInfo.Artist ?? "Unknown Artist";
-            string title = mediaInfo.Title ?? "Unknown Title";
-            double position = timeline?.Position.TotalSeconds ?? 0;
-            double duration = timeline?.EndTime.TotalSeconds ?? 0;
-            bool isPlaying = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-
-            bool trackChanged = artist != State.Artist || title != State.Title;
-            
-            // Проверяем значительные изменения позиции (перемотка)
-            bool positionJumped = Math.Abs(position - lastPosition) > 3;
-            bool playbackChanged = isPlaying != lastIsPlaying;
-
-            if (trackChanged)
-            {
-                // Выводим только при смене трека
-                Console.WriteLine($"🎵 {artist} — {title}");
-
-                trackTaskCTS?.Cancel();
-                trackTaskCTS = new CancellationTokenSource();
-
-                State.Artist = artist;
-                State.Title = title;
-                State.Position = position;
-                State.Duration = duration;
-                State.IsPlaying = isPlaying;
-
-                lastPosition = position;
-                lastIsPlaying = isPlaying;
-
-                await SendUpdate(force: true);
-
-                _ = Task.Run(() => ProcessTrackChange(mediaInfo, trackTaskCTS.Token));
-            }
-            else if (positionJumped || playbackChanged)
-            {
-                // Отправляем только при перемотке или смене статуса воспроизведения
-                State.Position = position;
-                State.Duration = duration;
-                State.IsPlaying = isPlaying;
-
-                lastPosition = position;
-                lastIsPlaying = isPlaying;
-
-                await SendUpdate(force: true);
-            }
-            else
-            {
-                // Просто обновляем локальное состояние без отправки
-                State.Position = position;
-                State.Duration = duration;
-                State.IsPlaying = isPlaying;
-                lastPosition = position;
-            }
-        }
-        
-        private async Task<GlobalSystemMediaTransportControlsSession?> GetSessionBySource(
+        private Task<GlobalSystemMediaTransportControlsSession?> GetSessionBySource(
             GlobalSystemMediaTransportControlsSessionManager manager)
         {
             var sessions = manager.GetSessions();
@@ -278,7 +359,7 @@ namespace NowMediaMonitor
             // Если источник не выбран, берем текущую сессию
             if (string.IsNullOrEmpty(selectedSource) || selectedSource == "auto")
             {
-                return manager.GetCurrentSession();
+                return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(manager.GetCurrentSession());
             }
 
             // Ищем сессию по выбранному источнику
@@ -289,54 +370,14 @@ namespace NowMediaMonitor
                     var appId = session.SourceAppUserModelId;
                     if (appId == selectedSource)
                     {
-                        return session;
+                        return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(session);
                     }
                 }
                 catch { }
             }
 
             // Если не нашли, возвращаем текущую
-            return manager.GetCurrentSession();
-        }
-
-        private async Task ProcessTrackChange(
-            GlobalSystemMediaTransportControlsSessionMediaProperties mediaInfo,
-            CancellationToken token)
-        {
-            try
-            {
-                // Получаем длительность
-                double duration = await WaitForDuration(currentSession);
-
-                if (token.IsCancellationRequested)
-                    return;
-
-                State.Duration = duration;
-
-                await SendUpdate(force: true);
-            }
-            catch
-            {
-                // Игнорируем ошибки для снижения нагрузки
-            }
-        }
-
-        private async Task<double> WaitForDuration(GlobalSystemMediaTransportControlsSession session)
-        {
-            for (int i = 0; i < 10; i++)
-            {
-                try
-                {
-                    var t = session.GetTimelineProperties();
-                    if (t?.EndTime.TotalSeconds > 0)
-                        return t.EndTime.TotalSeconds;
-                }
-                catch { }
-
-                await Task.Delay(300);
-            }
-
-            return 0;
+            return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(manager.GetCurrentSession());
         }
 
         private void SetNoPlayback()
@@ -349,23 +390,8 @@ namespace NowMediaMonitor
                 State.Duration = 0;
                 State.IsPlaying = false;
                 
-                // Не выводим в консоль для снижения нагрузки
+                TriggerDebouncedUpdate();
             }
-        }
-
-        private async Task SendUpdate(bool force = false)
-        {
-            if (!force)
-            {
-                var dt = (DateTime.Now - lastUpdate).TotalSeconds;
-                if (dt < UPDATE_COOLDOWN)
-                    return;
-            }
-
-            lastUpdate = DateTime.Now;
-
-            // Не выводим State.Print() для снижения нагрузки
-            await SendToPythonServer();
         }
 
         private async Task SendToPythonServer()
@@ -386,12 +412,15 @@ namespace NowMediaMonitor
                 var json = JsonSerializer.Serialize(data);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                // Отправляем без ожидания ответа для снижения нагрузки
-                _ = httpClient.PostAsync($"{pythonServerUrl}/update_from_cs", content);
+                // Правильно ждем ответ с таймаутом
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                var response = await httpClient.PostAsync($"{pythonServerUrl}/update_from_cs", content, cts.Token);
+                response.EnsureSuccessStatusCode();
             }
-            catch
+            catch (Exception ex)
             {
-                // Игнорируем ошибки отправки чтобы не нагружать CPU логами
+                // Логируем только тип ошибки без деталей
+                Console.WriteLine($"⚠️ HTTP: {ex.GetType().Name}");
             }
         }
     }

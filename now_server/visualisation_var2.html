@@ -95,10 +95,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            box-shadow: 0 0 25px rgba(29, 185, 84, 0.8),
-                        0 0 45px rgba(29, 185, 84, 0.6),
-                        0 0 65px rgba(29, 185, 84, 0.4);
+            box-shadow: none;
             transition: box-shadow 0.8s ease, opacity 0.6s ease-in-out;
+            overflow: hidden;
         }
         .album-cover.active {
             opacity: 1;
@@ -112,20 +111,24 @@
         }
         .ambient-light {
             position: absolute;
-            top: -15px;
-            left: -15px;
-            right: -15px;
-            bottom: -15px;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
             border-radius: 16px;
-            z-index: 1;
+            z-index: 0;
             opacity: 1;
             pointer-events: none;
-            filter: blur(12px);
-            background: radial-gradient(circle at 50% 20%, 
-                var(--ambient-color, rgba(29, 185, 84, 0.85)) 0%,
-                transparent 65%);
-            animation: ambientPulse 3s ease-in-out infinite;
-            transition: background 0.5s ease;
+            filter: blur(25px);
+            background: 
+                radial-gradient(circle at 0% 0%, var(--ambient-left-1, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 50% 0%, var(--ambient-top-2, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, var(--ambient-right-1, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 100% 50%, var(--ambient-right-2, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, var(--ambient-right-3, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 50% 100%, var(--ambient-bottom-2, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, var(--ambient-left-3, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 0% 50%, var(--ambient-left-2, transparent) 0%, transparent 40%);
         }
         @keyframes ambientPulse {
             0%, 100% {
@@ -407,11 +410,129 @@
     let progressInterval;
     
     // Переменные для подсветки
-    let currentAmbientColor = null; // Сохраняем текущий цвет свечения (только из изображения обложки)
-    let previousAmbientColor = null; // Предыдущий цвет для плавного перехода
-    let colorTransitionAnimation = null; // Анимация перехода цветов
-    let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
-    let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
+    let currentAmbientColor = null;
+    let previousAmbientColor = null;
+    let colorTransitionAnimation = null;
+    let activeCoverLoadId = null;
+    let lastActiveTimestamp = 0;
+    let noCoverTimeout = null;
+    let colorExtractionTimeout = null;
+    let pendingCoverUrl = null;
+
+    // Кеш для результатов извлечения цветов
+    window.colorCache = new Map();
+    const colorCache = window.colorCache;
+    
+    // Статистика производительности
+    window.performanceStats = {
+        colorExtractions: 0,
+        totalTime: 0,
+        maxTime: 0,
+        minTime: Infinity,
+        cacheHits: 0
+    };
+    const performanceStats = window.performanceStats;
+    
+    function logPerformance(operation, duration) {
+        if (window.DEBUG_PERFORMANCE) {
+            console.log(`[PERF] ${operation}: ${duration.toFixed(2)}ms`);
+        }
+    }
+    
+    function getColorAtPoint(imageData, x, y, width) {
+        const index = (y * width + x) * 4;
+        return {
+            r: imageData.data[index],
+            g: imageData.data[index + 1],
+            b: imageData.data[index + 2],
+            a: imageData.data[index + 3]
+        };
+    }
+
+    function getEdgeColors(image, trackTitle = null, trackArtist = null) {
+        return new Promise((resolve, reject) => {
+            const startTime = performance.now();
+            
+            try {
+                if (!image || !image.complete || image.naturalWidth === 0) {
+                    reject(new Error('Изображение не загружено'));
+                    return;
+                }
+
+                const fullUrl = image.src;
+                const cacheKey = trackTitle && trackArtist 
+                    ? `edges_${fullUrl}|${trackTitle}|${trackArtist}` 
+                    : `edges_${fullUrl}`;
+                
+                if (colorCache.has(cacheKey)) {
+                    performanceStats.cacheHits++;
+                    const cachedResult = colorCache.get(cacheKey);
+                    logPerformance('getEdgeColors (CACHED)', performance.now() - startTime);
+                    resolve(cachedResult);
+                    return;
+                }
+                
+                performanceStats.colorExtractions++;
+
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const size = 100;
+                canvas.width = size;
+                canvas.height = size;
+                
+                ctx.drawImage(image, 0, 0, size, size);
+                const imageData = ctx.getImageData(0, 0, size, size);
+                
+                const edges = {
+                    left: [
+                        getColorAtPoint(imageData, 0, 0, size),
+                        getColorAtPoint(imageData, 0, Math.floor(size / 2), size),
+                        getColorAtPoint(imageData, 0, size - 1, size)
+                    ],
+                    bottom: [
+                        getColorAtPoint(imageData, 0, size - 1, size),
+                        getColorAtPoint(imageData, Math.floor(size / 2), size - 1, size),
+                        getColorAtPoint(imageData, size - 1, size - 1, size)
+                    ],
+                    right: [
+                        getColorAtPoint(imageData, size - 1, size - 1, size),
+                        getColorAtPoint(imageData, size - 1, Math.floor(size / 2), size),
+                        getColorAtPoint(imageData, size - 1, 0, size)
+                    ],
+                    top: [
+                        getColorAtPoint(imageData, size - 1, 0, size),
+                        getColorAtPoint(imageData, Math.floor(size / 2), 0, size),
+                        getColorAtPoint(imageData, 0, 0, size)
+                    ]
+                };
+                
+                const result = {
+                    top: edges.top.map(c => `rgba(${c.r}, ${c.g}, ${c.b}, 0.85)`),
+                    right: edges.right.map(c => `rgba(${c.r}, ${c.g}, ${c.b}, 0.85)`),
+                    bottom: edges.bottom.map(c => `rgba(${c.r}, ${c.g}, ${c.b}, 0.85)`),
+                    left: edges.left.map(c => `rgba(${c.r}, ${c.g}, ${c.b}, 0.85)`)
+                };
+                
+                if (colorCache.size >= 50) {
+                    const firstKey = colorCache.keys().next().value;
+                    colorCache.delete(firstKey);
+                }
+                colorCache.set(cacheKey, result);
+                
+                const duration = performance.now() - startTime;
+                performanceStats.totalTime += duration;
+                performanceStats.maxTime = Math.max(performanceStats.maxTime, duration);
+                performanceStats.minTime = Math.min(performanceStats.minTime, duration);
+                
+                logPerformance('getEdgeColors', duration);
+                
+                resolve(result);
+            } catch (error) {
+                console.error('Ошибка в getEdgeColors:', error);
+                reject(error);
+            }
+        });
+    }
 
     // Создаём 14 полосок визуализатора с хаотичными параметрами анимации
     function createVisualizer() {
@@ -535,17 +656,34 @@
     }
 
     // Получение двух доминирующих цветов из изображения
-    function getDominantColors(image) {
+    function getDominantColors(image, trackTitle = null, trackArtist = null) {
         return new Promise((resolve, reject) => {
+            const startTime = performance.now();
+            
             try {
                 if (!image || !image.complete || image.naturalWidth === 0) {
                     reject(new Error('Изображение не загружено'));
                     return;
                 }
 
+                const fullUrl = image.src;
+                const cacheKey = trackTitle && trackArtist 
+                    ? `${fullUrl}|${trackTitle}|${trackArtist}` 
+                    : fullUrl;
+                
+                if (colorCache.has(cacheKey)) {
+                    performanceStats.cacheHits++;
+                    const cachedResult = colorCache.get(cacheKey);
+                    logPerformance('getDominantColors (CACHED)', performance.now() - startTime);
+                    resolve(cachedResult);
+                    return;
+                }
+                
+                performanceStats.colorExtractions++;
+
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                const size = Math.min(200, Math.max(image.naturalWidth, image.naturalHeight));
+                const size = 80;
                 canvas.width = size;
                 canvas.height = size;
                 
@@ -850,11 +988,34 @@
                     }
                 }
                 
-                console.log('Извлечены два доминирующих цвета:', {firstColor, secondColor, contrast: colorDistance(firstColor, secondColor)});
-                resolve({
+                const result = {
                     first: `rgba(${firstColor.r}, ${firstColor.g}, ${firstColor.b}, 0.85)`,
                     second: `rgba(${secondColor.r}, ${secondColor.g}, ${secondColor.b}, 0.85)`
-                });
+                };
+                
+                if (colorCache.size >= 50) {
+                    const firstKey = colorCache.keys().next().value;
+                    colorCache.delete(firstKey);
+                }
+                colorCache.set(cacheKey, result);
+                
+                const duration = performance.now() - startTime;
+                performanceStats.totalTime += duration;
+                performanceStats.maxTime = Math.max(performanceStats.maxTime, duration);
+                performanceStats.minTime = Math.min(performanceStats.minTime, duration);
+                
+                logPerformance('getDominantColors', duration);
+                
+                if (performanceStats.colorExtractions % 10 === 0) {
+                    const avgTime = performanceStats.totalTime / performanceStats.colorExtractions;
+                    console.log(`[PERF STATS] Извлечений: ${performanceStats.colorExtractions}, ` +
+                              `Кеш попаданий: ${performanceStats.cacheHits}, ` +
+                              `Среднее время: ${avgTime.toFixed(2)}ms, ` +
+                              `Макс: ${performanceStats.maxTime.toFixed(2)}ms, ` +
+                              `Мин: ${performanceStats.minTime.toFixed(2)}ms`);
+                }
+                
+                resolve(result);
             } catch (error) {
                 console.error('Ошибка в getDominantColors:', error);
                 reject(error);
@@ -1078,54 +1239,43 @@
         colorTransitionAnimation = requestAnimationFrame(animate);
     }
 
-    // Обновление ambient light цвета
-    function updateAmbientLight(color, useTransition = true) {
-        // Проверяем, включена ли подсветка
+    // Обновление ambient light с градиентами по краям
+    function updateAmbientLight(edgeColors, useTransition = true) {
         if (currentConfig.ambient_light_enabled === false) {
-            return; // Не применяем подсветку, если она выключена
+            return;
         }
         
-        const targetRGB = parseColor(color);
-        const targetColor = `rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.85)`;
-        
-        // Если нужно использовать переход и есть предыдущий цвет
-        if (useTransition && previousAmbientColor && previousAmbientColor !== targetColor) {
-            transitionAmbientLight(previousAmbientColor, targetColor);
-        } else {
-            // Мгновенное применение цвета
-            currentAmbientColor = targetColor;
-            previousAmbientColor = targetColor;
-            document.documentElement.style.setProperty('--ambient-color', targetColor);
+        if (edgeColors && edgeColors.top) {
+            document.documentElement.style.setProperty('--ambient-top-1', edgeColors.top[0]);
+            document.documentElement.style.setProperty('--ambient-top-2', edgeColors.top[1]);
+            document.documentElement.style.setProperty('--ambient-top-3', edgeColors.top[2]);
             
-            // Применяем тень к обоим изображениям
-            if (cover1) {
-                cover1.style.transition = 'box-shadow 0.8s ease';
-                cover1.style.boxShadow = `
-                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
-                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
-                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
-                `;
-            }
-            if (cover2) {
-                cover2.style.transition = 'box-shadow 0.8s ease';
-                cover2.style.boxShadow = `
-                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
-                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
-                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
-                `;
-            }
+            document.documentElement.style.setProperty('--ambient-right-1', edgeColors.right[0]);
+            document.documentElement.style.setProperty('--ambient-right-2', edgeColors.right[1]);
+            document.documentElement.style.setProperty('--ambient-right-3', edgeColors.right[2]);
+            
+            document.documentElement.style.setProperty('--ambient-bottom-1', edgeColors.bottom[0]);
+            document.documentElement.style.setProperty('--ambient-bottom-2', edgeColors.bottom[1]);
+            document.documentElement.style.setProperty('--ambient-bottom-3', edgeColors.bottom[2]);
+            
+            document.documentElement.style.setProperty('--ambient-left-1', edgeColors.left[0]);
+            document.documentElement.style.setProperty('--ambient-left-2', edgeColors.left[1]);
+            document.documentElement.style.setProperty('--ambient-left-3', edgeColors.left[2]);
+            
+            if (cover1) cover1.style.boxShadow = 'none';
+            if (cover2) cover2.style.boxShadow = 'none';
         }
     }
 
     // Применение автоматических цветов из изображения
-    function applyAutoColors(colors) {
+    function applyAutoColors(colors, edgeColors) {
         if (!currentConfig.auto_colors_enabled) {
-            return; // Автоматические цвета выключены
+            return;
         }
 
-        // Первый цвет (осветленный) для обложки
-        const coverColor = lightenColor(colors.first);
-        updateAmbientLight(coverColor, false);
+        if (edgeColors) {
+            updateAmbientLight(edgeColors, false);
+        }
 
         // Первый цвет для подложки
         // Проверяем яркость и затемняем, если слишком светлый
@@ -1228,24 +1378,19 @@
                     const activeCover = currentCover && currentCover.src && currentCover.complete && currentCover.naturalWidth > 0 ? currentCover : null;
                     if (activeCover && !activeCover.src.includes('NoCover') && !activeCover.src.includes('/no_cover')) {
                         console.log('Автоматические цвета включены, пересчитываем цвета из текущей обложки');
-                        // Пересчитываем цвета из текущей обложки
-                        getDominantColors(activeCover)
-                            .then(colors => {
-                                console.log('Применяем автоматические цвета из текущей обложки:', colors);
-                                applyAutoColors(colors);
+                        const currentTitle = title ? title.textContent : null;
+                        const currentArtist = artist ? artist.textContent : null;
+                        
+                        Promise.all([
+                            getDominantColors(activeCover, currentTitle, currentArtist),
+                            getEdgeColors(activeCover, currentTitle, currentArtist)
+                        ])
+                            .then(([colors, edgeColors]) => {
+                                console.log('Применяем автоматические цвета из текущей обложки:', { colors, edgeColors });
+                                applyAutoColors(colors, edgeColors);
                             })
                             .catch(error => {
                                 console.error('Не удалось извлечь цвета из обложки:', error);
-                                // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
-                                getDominantColor(activeCover)
-                                    .then(color => {
-                                        if (currentConfig.auto_colors_enabled) {
-                                            updateAmbientLight(color, false);
-                                        }
-                                    })
-                                    .catch(() => {
-                                        // Оставляем предыдущий цвет подсветки
-                                    });
                             });
                     }
                 }
@@ -1404,32 +1549,39 @@
             loadingCover.onerror = null;
             
             loadingCover.onload = function() {
-                // Извлекаем два доминирующих цвета из изображения
-                getDominantColors(loadingCover)
-                    .then(colors => {
-                        console.log('Применяем цвета из изображения:', colors);
+                if (colorExtractionTimeout) clearTimeout(colorExtractionTimeout);
+                
+                colorExtractionTimeout = setTimeout(() => {
+                    colorExtractionTimeout = null;
+                    
+                    const extractColors = () => {
+                        const trackTitle = title ? title.textContent : null;
+                        const trackArtist = artist ? artist.textContent : null;
                         
-                        // Если включены автоматические цвета, применяем их
-                        if (currentConfig.auto_colors_enabled) {
-                            applyAutoColors(colors);
-                        } else {
-                            // Используем первый цвет для подсветки обложки с плавным переходом
-                            updateAmbientLight(colors.first, !isFirstLoad);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Не удалось извлечь цвета из изображения:', error);
-                        // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
-                        getDominantColor(loadingCover)
-                            .then(color => {
-                                if (!currentConfig.auto_colors_enabled) {
-                                    updateAmbientLight(color, !isFirstLoad);
+                        Promise.all([
+                            getDominantColors(loadingCover, trackTitle, trackArtist),
+                            getEdgeColors(loadingCover, trackTitle, trackArtist)
+                        ])
+                            .then(([colors, edgeColors]) => {
+                                console.log('Применяем цвета из изображения:', { colors, edgeColors });
+                                
+                                if (currentConfig.auto_colors_enabled) {
+                                    applyAutoColors(colors, edgeColors);
+                                } else {
+                                    updateAmbientLight(edgeColors, false);
                                 }
                             })
-                            .catch(() => {
-                                // Оставляем предыдущий цвет подсветки
+                            .catch(error => {
+                                console.error('Не удалось извлечь цвета:', error);
                             });
-                    });
+                    };
+                    
+                    if (window.requestIdleCallback) {
+                        requestIdleCallback(extractColors, { timeout: 100 });
+                    } else {
+                        setTimeout(extractColors, 0);
+                    }
+                }, 50);
                 
                 // Плавный переход между обложками (crossfade)
                 // Если это первая загрузка, просто делаем изображение видимым

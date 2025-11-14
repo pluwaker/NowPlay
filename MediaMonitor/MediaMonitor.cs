@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
@@ -12,15 +13,16 @@ using Windows.Storage.Streams;
 
 namespace NowMediaMonitor
 {
-    public class MediaMonitor
+    public class MediaMonitor : IDisposable
     {
         public CurrentMediaState State = new();
 
         private GlobalSystemMediaTransportControlsSession? currentSession;
         private CancellationTokenSource? trackTaskCTS;
+        private Task? activeTrackTask = null;
 
         private DateTime lastUpdate = DateTime.MinValue;
-        private readonly double UPDATE_COOLDOWN = 0.1;
+        private readonly double UPDATE_COOLDOWN = 2.0;
 
         private readonly HttpClient httpClient = new HttpClient();
         private readonly string pythonServerUrl = "http://localhost:8080";
@@ -30,6 +32,62 @@ namespace NowMediaMonitor
         private bool lastIsPlaying = false;
         private string selectedSource = "";
         private bool hasLoggedNoSession = false; // Чтобы не спамить логами
+        
+        // IDisposable pattern
+        private bool disposed = false;
+
+        // Diagnostic logging
+        private readonly DiagnosticLogger diagnosticLogger;
+        
+        // Session caching to reduce expensive enumeration
+        private readonly SessionCache sessionCache = new SessionCache();
+        private DateTime lastSourceEnumeration = DateTime.MinValue;
+        private const int SOURCE_CACHE_SECONDS = 30;
+        
+        // HTTP semaphore to limit concurrent requests
+        private readonly SemaphoreSlim httpSemaphore = new SemaphoreSlim(1, 1);
+
+        public MediaMonitor(bool diagnosticMode = false)
+        {
+            diagnosticLogger = new DiagnosticLogger(diagnosticMode);
+            
+            // Set 5-second timeout on HttpClient
+            httpClient.Timeout = TimeSpan.FromSeconds(5);
+        }
+
+        /// <summary>
+        /// Helper method to send HTTP requests with proper response disposal and semaphore control
+        /// </summary>
+        /// <param name="requestFunc">Function that creates and sends the HTTP request</param>
+        /// <returns>Task that completes when the request is sent and response is disposed</returns>
+        private async Task SendHttpWithDisposalAsync(Func<Task<HttpResponseMessage>> requestFunc)
+        {
+            await httpSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                using var response = await requestFunc().ConfigureAwait(false);
+                // Response is automatically disposed here
+            }
+            catch (TaskCanceledException ex)
+            {
+                // Timeout occurred - log only in diagnostic mode
+                diagnosticLogger.LogHttpError("HTTP request timeout", ex);
+            }
+            catch (HttpRequestException ex)
+            {
+                // HTTP-specific errors (connection failed, DNS issues, etc.) - log only in diagnostic mode
+                diagnosticLogger.LogHttpError("HTTP request failed", ex);
+            }
+            catch (Exception ex)
+            {
+                // Other unexpected errors - log only in diagnostic mode
+                diagnosticLogger.LogHttpError("Unexpected HTTP error", ex);
+            }
+            finally
+            {
+                httpSemaphore.Release();
+            }
+        }
 
         public async Task Start()
         {
@@ -49,7 +107,7 @@ namespace NowMediaMonitor
             Console.WriteLine($"🔗 Подключение к серверу: {pythonServerUrl}");
             
             // Загружаем выбранный источник из конфига
-            await LoadSelectedSource();
+            await LoadSelectedSource().ConfigureAwait(false);
             
             Console.WriteLine("🎵 Начинаем мониторинг медиа...");
 
@@ -57,7 +115,10 @@ namespace NowMediaMonitor
             {
                 try
                 {
-                    await Tick();
+                    await Tick().ConfigureAwait(false);
+                    
+                    // Log diagnostic information periodically
+                    diagnosticLogger.LogPeriodic();
                 }
                 catch (Exception ex)
                 {
@@ -65,7 +126,7 @@ namespace NowMediaMonitor
                 }
 
                 // Увеличиваем интервал до 2 секунд для снижения нагрузки
-                await Task.Delay(2000);
+                await Task.Delay(2000).ConfigureAwait(false);
             }
         }
         
@@ -73,78 +134,160 @@ namespace NowMediaMonitor
         {
             try
             {
-                var response = await httpClient.GetAsync($"{pythonServerUrl}/get_config");
-                if (response.IsSuccessStatusCode)
+                diagnosticLogger.LogHttpRequest();
+                
+                await httpSemaphore.WaitAsync().ConfigureAwait(false);
+                try
                 {
-                    var json = await response.Content.ReadAsStringAsync();
-                    var config = JsonSerializer.Deserialize<JsonElement>(json);
-                    
-                    if (config.TryGetProperty("selected_media_source", out var source))
+                    using var response = await httpClient.GetAsync($"{pythonServerUrl}/get_config").ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode)
                     {
-                        selectedSource = source.GetString() ?? "";
-                        if (!string.IsNullOrEmpty(selectedSource) && selectedSource != "auto")
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        var config = JsonSerializer.Deserialize<JsonElement>(json);
+                        
+                        if (config.TryGetProperty("selected_media_source", out var source))
                         {
-                            Console.WriteLine($"📻 Выбран источник: {selectedSource}");
+                            selectedSource = source.GetString() ?? "";
+                            if (!string.IsNullOrEmpty(selectedSource) && selectedSource != "auto")
+                            {
+                                Console.WriteLine($"📻 Выбран источник: {selectedSource}");
+                            }
                         }
                     }
                 }
+                catch (TaskCanceledException ex)
+                {
+                    // Timeout occurred - log only in diagnostic mode
+                    diagnosticLogger.LogHttpError("Config request timeout", ex);
+                }
+                catch (HttpRequestException ex)
+                {
+                    // HTTP-specific errors - log only in diagnostic mode
+                    diagnosticLogger.LogHttpError("Config request failed", ex);
+                }
+                catch (Exception ex)
+                {
+                    // Other unexpected errors - log only in diagnostic mode
+                    diagnosticLogger.LogHttpError("Unexpected error loading config", ex);
+                }
+                finally
+                {
+                    httpSemaphore.Release();
+                }
                 
                 // Отправляем список доступных источников на сервер
-                await SendAvailableSources();
+                await SendAvailableSources().ConfigureAwait(false);
             }
             catch
             {
-                // Игнорируем ошибки загрузки конфига
+                // Outer catch to ensure method doesn't throw
             }
+        }
+        
+        /// <summary>
+        /// Checks if source enumeration should be performed based on cache validity
+        /// </summary>
+        /// <returns>True if cache is expired and enumeration is needed</returns>
+        private bool ShouldEnumerateSources()
+        {
+            var elapsed = (DateTime.Now - lastSourceEnumeration).TotalSeconds;
+            return elapsed >= SOURCE_CACHE_SECONDS;
         }
         
         private async Task SendAvailableSources()
         {
             try
             {
-                var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                // Check if we should skip enumeration due to valid cache
+                if (!ShouldEnumerateSources())
+                {
+                    return;
+                }
+                
+                var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync().AsTask().ConfigureAwait(false);
                 var sessions = manager.GetSessions();
+                
+                // Log session enumeration for diagnostics
+                diagnosticLogger.LogSessionAccess();
                 
                 var sources = new List<object>();
                 var seenIds = new HashSet<string>();
+                var sourceIds = new List<string>();
                 
-                foreach (var session in sessions)
+                try
                 {
-                    try
+                    foreach (var session in sessions)
                     {
-                        var appId = session.SourceAppUserModelId;
-                        if (!string.IsNullOrEmpty(appId) && !seenIds.Contains(appId))
+                        try
                         {
-                            seenIds.Add(appId);
-                            
-                            // Пытаемся получить читаемое имя
-                            string displayName = appId;
+                            var appId = session.SourceAppUserModelId;
+                            if (!string.IsNullOrEmpty(appId) && !seenIds.Contains(appId))
+                            {
+                                seenIds.Add(appId);
+                                sourceIds.Add(appId);
+                                
+                                // Пытаемся получить читаемое имя
+                                string displayName = appId;
+                                try
+                                {
+                                    var parts = appId.Split('!');
+                                    if (parts.Length > 0)
+                                    {
+                                        var appParts = parts[0].Split('.');
+                                        if (appParts.Length > 0)
+                                        {
+                                            displayName = appParts[appParts.Length - 1];
+                                        }
+                                    }
+                                }
+                                catch { }
+                                
+                                sources.Add(new { id = appId, name = displayName });
+                            }
+                        }
+                        catch { }
+                        finally
+                        {
+                            // Dispose each session immediately after reading properties
                             try
                             {
-                                var parts = appId.Split('!');
-                                if (parts.Length > 0)
+                                if (Marshal.IsComObject(session))
                                 {
-                                    var appParts = parts[0].Split('.');
-                                    if (appParts.Length > 0)
-                                    {
-                                        displayName = appParts[appParts.Length - 1];
-                                    }
+                                    Marshal.ReleaseComObject(session);
                                 }
                             }
                             catch { }
-                            
-                            sources.Add(new { id = appId, name = displayName });
                         }
                     }
-                    catch { }
+                    
+                    var data = new { sources };
+                    var json = JsonSerializer.Serialize(data);
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    
+                    diagnosticLogger.LogHttpRequest();
+                    await SendHttpWithDisposalAsync(() => httpClient.PostAsync($"{pythonServerUrl}/update_sources", content)).ConfigureAwait(false);
+                    Console.WriteLine($"📻 Найдено источников: {sources.Count}");
+                    
+                    // Update cache and timestamp after successful enumeration
+                    sessionCache.Update(sourceIds);
+                    lastSourceEnumeration = DateTime.Now;
                 }
-                
-                var data = new { sources };
-                var json = JsonSerializer.Serialize(data);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-                
-                await httpClient.PostAsync($"{pythonServerUrl}/update_sources", content);
-                Console.WriteLine($"📻 Найдено источников: {sources.Count}");
+                catch
+                {
+                    // On error, ensure all sessions are disposed
+                    foreach (var session in sessions)
+                    {
+                        try
+                        {
+                            if (Marshal.IsComObject(session))
+                            {
+                                Marshal.ReleaseComObject(session);
+                            }
+                        }
+                        catch { }
+                    }
+                    throw;
+                }
             }
             catch
             {
@@ -154,37 +297,72 @@ namespace NowMediaMonitor
 
         private async Task Tick()
         {
+            GlobalSystemMediaTransportControlsSessionManager? manager = null;
+            GlobalSystemMediaTransportControlsSession? newSession = null;
+            
             try
             {
-                var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync().AsTask().ConfigureAwait(false);
                 
                 // Получаем сессию с учетом выбранного источника
-                currentSession = await GetSessionBySource(manager);
+                newSession = await GetSessionBySource(manager).ConfigureAwait(false);
 
-                if (currentSession == null)
+                if (newSession == null)
                 {
                     // Выводим отладочную информацию только один раз
                     if (!hasLoggedNoSession)
                     {
                         var allSessions = manager.GetSessions();
+                        diagnosticLogger.LogSessionAccess();
                         Console.WriteLine($"⚠️ Сессия не найдена. Всего сессий: {allSessions.Count}");
                         
                         if (allSessions.Count > 0)
                         {
                             Console.WriteLine($"   Выбранный источник: '{selectedSource}'");
                             Console.WriteLine("   Доступные сессии:");
-                            foreach (var session in allSessions)
+                            
+                            try
                             {
-                                try
+                                foreach (var session in allSessions)
                                 {
-                                    var appId = session.SourceAppUserModelId;
-                                    var props = await session.TryGetMediaPropertiesAsync();
-                                    Console.WriteLine($"   - {appId}");
-                                    Console.WriteLine($"     Трек: {props.Artist} - {props.Title}");
+                                    try
+                                    {
+                                        var appId = session.SourceAppUserModelId;
+                                        var props = await session.TryGetMediaPropertiesAsync().AsTask().ConfigureAwait(false);
+                                        Console.WriteLine($"   - {appId}");
+                                        Console.WriteLine($"     Трек: {props.Artist} - {props.Title}");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"   - Ошибка получения информации: {ex.Message}");
+                                    }
+                                    finally
+                                    {
+                                        // Dispose each session after reading properties
+                                        try
+                                        {
+                                            if (Marshal.IsComObject(session))
+                                            {
+                                                Marshal.ReleaseComObject(session);
+                                            }
+                                        }
+                                        catch { }
+                                    }
                                 }
-                                catch (Exception ex)
+                            }
+                            catch
+                            {
+                                // Ensure all sessions are disposed on error
+                                foreach (var session in allSessions)
                                 {
-                                    Console.WriteLine($"   - Ошибка получения информации: {ex.Message}");
+                                    try
+                                    {
+                                        if (Marshal.IsComObject(session))
+                                        {
+                                            Marshal.ReleaseComObject(session);
+                                        }
+                                    }
+                                    catch { }
                                 }
                             }
                         }
@@ -195,6 +373,22 @@ namespace NowMediaMonitor
                     SetNoPlayback();
                     return;
                 }
+                
+                // Dispose previous currentSession before assigning new one
+                if (currentSession != null && currentSession != newSession)
+                {
+                    try
+                    {
+                        if (Marshal.IsComObject(currentSession))
+                        {
+                            Marshal.ReleaseComObject(currentSession);
+                        }
+                    }
+                    catch { }
+                }
+                
+                // Keep newSession alive for the cycle duration
+                currentSession = newSession;
                 
                 // Если нашли сессию, сбрасываем флаг
                 hasLoggedNoSession = false;
@@ -210,8 +404,24 @@ namespace NowMediaMonitor
                 SetNoPlayback();
                 return;
             }
+            finally
+            {
+                // Dispose manager after GetSessionBySource call
+                // Note: We don't dispose currentSession here as it needs to stay alive for the cycle
+                if (manager != null)
+                {
+                    try
+                    {
+                        if (Marshal.IsComObject(manager))
+                        {
+                            Marshal.ReleaseComObject(manager);
+                        }
+                    }
+                    catch { }
+                }
+            }
 
-            var mediaInfo = await currentSession.TryGetMediaPropertiesAsync();
+            var mediaInfo = await currentSession.TryGetMediaPropertiesAsync().AsTask().ConfigureAwait(false);
             var timeline = currentSession.GetTimelineProperties();
             var playback = currentSession.GetPlaybackInfo();
 
@@ -232,7 +442,46 @@ namespace NowMediaMonitor
                 // Выводим только при смене трека
                 Console.WriteLine($"🎵 {artist} — {title}");
 
-                trackTaskCTS?.Cancel();
+                // Check if activeTrackTask is running before starting new one
+                if (activeTrackTask != null && !activeTrackTask.IsCompleted)
+                {
+                    // Cancel and await previous task before starting new one
+                    var oldCts = trackTaskCTS;
+                    if (oldCts != null)
+                    {
+                        try
+                        {
+                            oldCts.Cancel();
+                        }
+                        catch { }
+                    }
+                    
+                    // Handle cancellation exceptions gracefully
+                    try
+                    {
+                        await activeTrackTask.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when task is cancelled
+                    }
+                    catch
+                    {
+                        // Ignore other exceptions from cancelled task
+                    }
+                    
+                    // Dispose old CTS after task completes
+                    if (oldCts != null)
+                    {
+                        try
+                        {
+                            oldCts.Dispose();
+                        }
+                        catch { }
+                    }
+                }
+                
+                // Create new CTS for the new task
                 trackTaskCTS = new CancellationTokenSource();
 
                 State.Artist = artist;
@@ -244,9 +493,10 @@ namespace NowMediaMonitor
                 lastPosition = position;
                 lastIsPlaying = isPlaying;
 
-                await SendUpdate(force: true);
+                await SendUpdate(force: true).ConfigureAwait(false);
 
-                _ = Task.Run(() => ProcessTrackChange(mediaInfo, trackTaskCTS.Token));
+                // Track the running ProcessTrackChange task
+                activeTrackTask = Task.Run(() => ProcessTrackChange(mediaInfo, trackTaskCTS.Token));
             }
             else if (positionJumped || playbackChanged)
             {
@@ -258,7 +508,7 @@ namespace NowMediaMonitor
                 lastPosition = position;
                 lastIsPlaying = isPlaying;
 
-                await SendUpdate(force: true);
+                await SendUpdate(force: true).ConfigureAwait(false);
             }
             else
             {
@@ -273,7 +523,8 @@ namespace NowMediaMonitor
         private async Task<GlobalSystemMediaTransportControlsSession?> GetSessionBySource(
             GlobalSystemMediaTransportControlsSessionManager manager)
         {
-            var sessions = manager.GetSessions();
+            // Log session enumeration for diagnostics
+            diagnosticLogger.LogSessionAccess();
             
             // Если источник не выбран, берем текущую сессию
             if (string.IsNullOrEmpty(selectedSource) || selectedSource == "auto")
@@ -282,21 +533,79 @@ namespace NowMediaMonitor
             }
 
             // Ищем сессию по выбранному источнику
-            foreach (var session in sessions)
+            GlobalSystemMediaTransportControlsSession? matchedSession = null;
+            IReadOnlyList<GlobalSystemMediaTransportControlsSession>? sessions = null;
+            
+            try
             {
-                try
+                sessions = manager.GetSessions();
+                
+                foreach (var session in sessions)
                 {
-                    var appId = session.SourceAppUserModelId;
-                    if (appId == selectedSource)
+                    try
                     {
-                        return session;
+                        var appId = session.SourceAppUserModelId;
+                        if (appId == selectedSource)
+                        {
+                            // Keep the matched session alive
+                            matchedSession = session;
+                            // Don't release the matched session - we're returning it
+                        }
+                        else
+                        {
+                            // Release non-matching sessions immediately to free COM resources
+                            try
+                            {
+                                if (Marshal.IsComObject(session))
+                                {
+                                    Marshal.ReleaseComObject(session);
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch
+                    {
+                        // If error reading properties, release the session
+                        try
+                        {
+                            if (Marshal.IsComObject(session))
+                            {
+                                Marshal.ReleaseComObject(session);
+                            }
+                        }
+                        catch { }
                     }
                 }
-                catch { }
+            }
+            catch
+            {
+                // On error, release all sessions including matched one
+                if (sessions != null)
+                {
+                    foreach (var session in sessions)
+                    {
+                        try
+                        {
+                            if (Marshal.IsComObject(session))
+                            {
+                                Marshal.ReleaseComObject(session);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                matchedSession = null;
+                throw;
             }
 
             // Если не нашли, возвращаем текущую
-            return manager.GetCurrentSession();
+            if (matchedSession == null)
+            {
+                return manager.GetCurrentSession();
+            }
+            
+            return matchedSession;
         }
 
         private async Task ProcessTrackChange(
@@ -306,14 +615,14 @@ namespace NowMediaMonitor
             try
             {
                 // Получаем длительность
-                double duration = await WaitForDuration(currentSession);
+                double duration = await WaitForDuration(currentSession).ConfigureAwait(false);
 
                 if (token.IsCancellationRequested)
                     return;
 
                 State.Duration = duration;
 
-                await SendUpdate(force: true);
+                await SendUpdate(force: true).ConfigureAwait(false);
             }
             catch
             {
@@ -333,7 +642,7 @@ namespace NowMediaMonitor
                 }
                 catch { }
 
-                await Task.Delay(300);
+                await Task.Delay(300).ConfigureAwait(false);
             }
 
             return 0;
@@ -365,7 +674,7 @@ namespace NowMediaMonitor
             lastUpdate = DateTime.Now;
 
             // Не выводим State.Print() для снижения нагрузки
-            await SendToPythonServer();
+            await SendToPythonServer().ConfigureAwait(false);
         }
 
         private async Task SendToPythonServer()
@@ -386,12 +695,223 @@ namespace NowMediaMonitor
                 var json = JsonSerializer.Serialize(data);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                // Отправляем без ожидания ответа для снижения нагрузки
-                _ = httpClient.PostAsync($"{pythonServerUrl}/update_from_cs", content);
+                // Use proper disposal pattern instead of fire-and-forget
+                diagnosticLogger.LogHttpRequest();
+                await SendHttpWithDisposalAsync(() => httpClient.PostAsync($"{pythonServerUrl}/update_from_cs", content)).ConfigureAwait(false);
             }
             catch
             {
                 // Игнорируем ошибки отправки чтобы не нагружать CPU логами
+            }
+        }
+
+        // IDisposable implementation
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                // Dispose managed resources
+                try
+                {
+                    // Cancel and wait for active track task to complete
+                    if (activeTrackTask != null && !activeTrackTask.IsCompleted)
+                    {
+                        if (trackTaskCTS != null)
+                        {
+                            trackTaskCTS.Cancel();
+                        }
+                        
+                        try
+                        {
+                            // Wait for task to complete with timeout
+                            activeTrackTask.Wait(TimeSpan.FromSeconds(2));
+                        }
+                        catch (AggregateException)
+                        {
+                            // Expected when task is cancelled
+                        }
+                        catch
+                        {
+                            // Ignore other exceptions
+                        }
+                        
+                        activeTrackTask = null;
+                    }
+                    
+                    // Cancel and dispose CancellationTokenSource
+                    if (trackTaskCTS != null)
+                    {
+                        trackTaskCTS.Cancel();
+                        trackTaskCTS.Dispose();
+                        trackTaskCTS = null;
+                    }
+
+                    // Clear current session reference (sessions don't implement IDisposable)
+                    currentSession = null;
+
+                    // Dispose HttpClient
+                    httpClient?.Dispose();
+                    
+                    // Dispose semaphore
+                    httpSemaphore?.Dispose();
+                }
+                catch
+                {
+                    // Ignore disposal errors
+                }
+            }
+
+            disposed = true;
+        }
+
+        // Finalizer
+        ~MediaMonitor()
+        {
+            Dispose(false);
+        }
+    }
+
+    /// <summary>
+    /// Internal helper class for caching session source IDs to reduce expensive session enumeration
+    /// </summary>
+    internal class SessionCache
+    {
+        private List<string> cachedSourceIds = new List<string>();
+        private DateTime cacheTime = DateTime.MinValue;
+        private const int CACHE_DURATION_SECONDS = 30;
+
+        /// <summary>
+        /// Checks if the cache is still valid (less than 30 seconds old)
+        /// </summary>
+        /// <returns>True if cache is valid, false if expired</returns>
+        public bool IsValid()
+        {
+            var elapsed = (DateTime.Now - cacheTime).TotalSeconds;
+            return elapsed < CACHE_DURATION_SECONDS;
+        }
+
+        /// <summary>
+        /// Updates the cache with new source IDs and resets the timestamp
+        /// </summary>
+        /// <param name="sourceIds">List of source IDs to cache</param>
+        public void Update(List<string> sourceIds)
+        {
+            cachedSourceIds = new List<string>(sourceIds);
+            cacheTime = DateTime.Now;
+        }
+
+        /// <summary>
+        /// Retrieves the cached source IDs
+        /// </summary>
+        /// <returns>List of cached source IDs</returns>
+        public List<string> GetCached()
+        {
+            return new List<string>(cachedSourceIds);
+        }
+    }
+
+    /// <summary>
+    /// Internal helper class for diagnostic logging to track resource usage
+    /// </summary>
+    internal class DiagnosticLogger
+    {
+        private int sessionAccessCount = 0;
+        private int httpRequestCount = 0;
+        private DateTime lastLogTime = DateTime.MinValue;
+        private long lastMemoryBytes = 0;
+        private DateTime lastMemoryLogTime = DateTime.MinValue;
+        private const int LOG_INTERVAL_SECONDS = 10;
+        private const int MEMORY_LOG_INTERVAL_SECONDS = 30;
+        private readonly bool enabled;
+
+        public DiagnosticLogger(bool enabled)
+        {
+            this.enabled = enabled;
+            if (enabled)
+            {
+                // Initialize memory baseline
+                lastMemoryBytes = GC.GetTotalMemory(false);
+                lastMemoryLogTime = DateTime.Now;
+                lastLogTime = DateTime.Now;
+            }
+        }
+
+        /// <summary>
+        /// Increments the session access counter for tracking session enumeration
+        /// </summary>
+        public void LogSessionAccess()
+        {
+            if (!enabled) return;
+            Interlocked.Increment(ref sessionAccessCount);
+        }
+
+        /// <summary>
+        /// Increments the HTTP request counter for tracking HTTP calls
+        /// </summary>
+        public void LogHttpRequest()
+        {
+            if (!enabled) return;
+            Interlocked.Increment(ref httpRequestCount);
+        }
+
+        /// <summary>
+        /// Logs HTTP errors only when diagnostic mode is enabled
+        /// </summary>
+        /// <param name="message">Error message describing the context</param>
+        /// <param name="ex">The exception that occurred</param>
+        public void LogHttpError(string message, Exception ex)
+        {
+            if (!enabled) return;
+            Console.WriteLine($"[DIAG] {message}: {ex.GetType().Name} - {ex.Message}");
+        }
+
+        /// <summary>
+        /// Outputs diagnostic statistics every 10 seconds if diagnostic mode is enabled
+        /// Also logs memory usage delta every 30 seconds
+        /// </summary>
+        public void LogPeriodic()
+        {
+            if (!enabled) return;
+
+            var now = DateTime.Now;
+            var elapsed = (now - lastLogTime).TotalSeconds;
+
+            // Log counters every 10 seconds
+            if (elapsed >= LOG_INTERVAL_SECONDS)
+            {
+                var memoryElapsed = (now - lastMemoryLogTime).TotalSeconds;
+                
+                // Calculate memory delta if 30 seconds have passed
+                string memoryInfo = "";
+                if (memoryElapsed >= MEMORY_LOG_INTERVAL_SECONDS)
+                {
+                    long currentMemory = GC.GetTotalMemory(false);
+                    long memoryDelta = currentMemory - lastMemoryBytes;
+                    double memoryDeltaMB = memoryDelta / (1024.0 * 1024.0);
+                    memoryInfo = $", Memory delta: {memoryDeltaMB:+0.0;-0.0} MB";
+                    
+                    lastMemoryBytes = currentMemory;
+                    lastMemoryLogTime = now;
+                }
+
+                // Calculate requests per minute
+                int requestsPerMinute = (int)(httpRequestCount * (60.0 / elapsed));
+
+                Console.WriteLine($"[DIAG] Sessions accessed: {sessionAccessCount}, HTTP requests/min: {requestsPerMinute}{memoryInfo}");
+
+                // Reset counters
+                sessionAccessCount = 0;
+                httpRequestCount = 0;
+                lastLogTime = now;
             }
         }
     }

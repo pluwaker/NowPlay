@@ -369,7 +369,7 @@
         .time-left,
         .time-right {
             font-size: 18px;
-            color: var(--secondary-color);
+            color: var(--text-color);
             font-weight: 500;
             min-width: 45px;
             text-align: center;
@@ -825,16 +825,47 @@
                     return;
                 }
                 
-                // Преобразуем в массив и сортируем по популярности
+                // Преобразуем в массив и вычисляем метрики для каждого цвета
                 const colors = Array.from(colorMap.entries()).map(([key, value]) => {
                     const r = Math.round(value.r / value.count);
                     const g = Math.round(value.g / value.count);
                     const b = Math.round(value.b / value.count);
                     const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
-                    return { r, g, b, count: value.count, luminance };
+                    
+                    // Вычисляем насыщенность (saturation)
+                    const max = Math.max(r, g, b);
+                    const min = Math.min(r, g, b);
+                    const saturation = max === 0 ? 0 : (max - min) / max;
+                    
+                    // Проверяем, является ли цвет серым
+                    const isGray = (max - min) < 30;
+                    
+                    // Вычисляем "интересность" цвета:
+                    // - Яркие цвета (luminance 80-200) получают бонус
+                    // - Насыщенные цвета получают большой бонус
+                    // - Серые цвета получают штраф
+                    let interestScore = value.count;
+                    
+                    if (!isGray) {
+                        // Бонус за насыщенность (до 5x)
+                        interestScore *= (1 + saturation * 4);
+                        
+                        // Бонус за яркость в диапазоне 80-200 (видимые цвета)
+                        if (luminance >= 80 && luminance <= 200) {
+                            interestScore *= 2;
+                        } else if (luminance >= 50 && luminance < 80) {
+                            interestScore *= 1.3;
+                        }
+                    } else {
+                        // Штраф для серых цветов
+                        interestScore *= 0.1;
+                    }
+                    
+                    return { r, g, b, count: value.count, luminance, saturation, isGray, interestScore };
                 });
                 
-                colors.sort((a, b) => b.count - a.count);
+                // Сортируем по "интересности" вместо популярности
+                colors.sort((a, b) => b.interestScore - a.interestScore);
                 
                 // Берем два самых популярных цвета
                 const firstColor = colors[0];
@@ -955,7 +986,7 @@
 
     // Снижение насыщенности цвета (делает цвет мягче, менее пестрым)
     // factor: 0.0 = полностью серый, 1.0 = исходный цвет (0.5 = средняя десатурация)
-    function desaturateColor(color, factor = 0.5) {
+    function desaturateColor(color, factor = 1.0) {
         const rgb = parseColor(color);
         // Вычисляем яркость для серого компонента
         const luminance = Math.round(0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
@@ -1214,8 +1245,18 @@
             artistElement.style.color = '';
         }
         
-        // Цвет фона прогресс-бара
-        const progressBgColor = darkenColor(textColor, 60);
+        // Цвет фона прогресс-бара - проверяем яркость текста
+        const textLuminance = (0.299 * textColorRGB.r + 0.587 * textColorRGB.g + 0.114 * textColorRGB.b);
+        let progressBgColor;
+        
+        if (textLuminance > 100) {
+            // Если текст светлый, затемняем для фона прогресс-бара
+            progressBgColor = darkenColor(textColor, 60);
+        } else {
+            // Если текст темный, осветляем или используем полупрозрачный вариант
+            progressBgColor = `rgba(${textColorRGB.r}, ${textColorRGB.g}, ${textColorRGB.b}, 0.3)`;
+        }
+        
         document.documentElement.style.setProperty('--progress-color1', progressBgColor);
         document.documentElement.style.setProperty('--progress-bg', progressBgColor);
     }

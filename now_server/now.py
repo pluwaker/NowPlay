@@ -291,6 +291,14 @@ async def serve_html(request):
         return web.FileResponse(file_path)
     return web.Response(status=404, text="Template not found")
 
+@routes.get('/{filename}.js')
+async def serve_js(request):
+    filename = request.match_info['filename']
+    file_path = os.path.join(visualisation_dir, f"{filename}.js")
+    if os.path.exists(file_path):
+        return web.FileResponse(file_path, headers={'Content-Type': 'application/javascript'})
+    return web.Response(status=404, text="JavaScript file not found")
+
 # Глобальная переменная для хранения списка источников
 available_sources = []
 
@@ -355,6 +363,7 @@ app.add_routes([
     web.post('/update_sources', update_sources),
     web.post('/update_from_cs', update_from_cs),
     web.get('/{filename}.html', serve_html),
+    web.get('/{filename}.js', serve_js),
 ])
 
 

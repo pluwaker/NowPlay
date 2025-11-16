@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MediaMonitor")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f4bec12edabbc3bc6e6fd7ddd7d09070fb7cb508")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+56c8fd652291e3b2f1194ff73486d292804f1223")]
 [assembly: System.Reflection.AssemblyProductAttribute("MediaMonitor")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MediaMonitor")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

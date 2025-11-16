@@ -27,7 +27,7 @@ namespace NowMediaMonitor
             try
             {
                 // Wrap MediaMonitor in using statement for proper disposal
-                using (monitor = new MediaMonitor(diagnosticMode))
+                using (monitor = new MediaMonitor())
                 {
                     // Start monitoring with cancellation support
                     var monitorTask = monitor.Start();

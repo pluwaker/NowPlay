@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MediaMonitor")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a72a654236ba9316d7a321123b140ed9582186d0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+56c8fd652291e3b2f1194ff73486d292804f1223")]
 [assembly: System.Reflection.AssemblyProductAttribute("MediaMonitor")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MediaMonitor")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

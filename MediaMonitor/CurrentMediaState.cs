@@ -14,6 +14,7 @@ namespace NowMediaMonitor
 
         public int CoverVersion { get; set; } = 1;
         public string CoverPath { get; set; } = "cover.png";
+        public string SourceId { get; set; } = "";
 
         public string Status => Artist == "Не воспроизводится" ? "inactive" : "active";
 

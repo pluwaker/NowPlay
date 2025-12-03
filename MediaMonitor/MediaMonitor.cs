@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
@@ -39,7 +40,13 @@ namespace NowMediaMonitor
         
         // Кеширование источников
         private DateTime lastSourceEnumeration = DateTime.MinValue;
-        private const int SOURCE_CACHE_SECONDS = 30;
+        private const int SOURCE_CACHE_SECONDS = 5;
+        private List<string> lastSentSources = new List<string>();
+        
+        // ConfigPoller для отслеживания изменений конфигурации
+        private System.Threading.Timer? configPollerTimer;
+        private string lastSelectedSource = "";
+        private const int CONFIG_POLL_INTERVAL_MS = 2000;
         
         public MediaMonitor()
         {
@@ -73,6 +80,12 @@ namespace NowMediaMonitor
             // Инициализируем SessionManager один раз
             await InitializeSessionManager();
             
+            // Отправляем начальный список источников
+            await SendAvailableSources(force: true);
+            
+            // Инициализируем ConfigPoller для отслеживания изменений конфигурации
+            InitializeConfigPoller();
+            
             // Создаем debounce timer
             debounceTimer = new System.Threading.Timer(OnDebounceTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
             
@@ -103,10 +116,74 @@ namespace NowMediaMonitor
             }
         }
         
+        private void InitializeConfigPoller()
+        {
+            configPollerTimer = new System.Threading.Timer(
+                OnConfigPollTimerElapsed,
+                null,
+                CONFIG_POLL_INTERVAL_MS,
+                CONFIG_POLL_INTERVAL_MS
+            );
+            Console.WriteLine("✅ ConfigPoller инициализирован");
+        }
+        
+        private async Task CheckConfigChanges()
+        {
+            try
+            {
+                using var response = await httpClient.GetAsync($"{pythonServerUrl}/get_config").ConfigureAwait(false);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var config = JsonSerializer.Deserialize<JsonElement>(json);
+                    
+                    if (config.TryGetProperty("selected_media_source", out var source))
+                    {
+                        string newSource = source.GetString() ?? "auto";
+                        
+                        // Проверяем, изменился ли источник
+                        if (newSource != lastSelectedSource)
+                        {
+                            Console.WriteLine($"🔄 Источник изменен: {lastSelectedSource} → {newSource}");
+                            lastSelectedSource = newSource;
+                            selectedSource = newSource;
+                            
+                            // Переключаем сессию
+                            await UpdateCurrentSession();
+                        }
+                    }
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // Сервер недоступен - игнорируем
+            }
+        }
+        
+        private void OnConfigPollTimerElapsed(object? state)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await CheckConfigChanges();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"⚠️ Ошибка проверки конфигурации: {ex.Message}");
+                }
+            });
+        }
+        
         private async void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
         {
             try
             {
+                // Отправляем обновленный список источников
+                await SendAvailableSources(force: true);
+                
+                // Обновляем текущую сессию
                 await UpdateCurrentSession();
             }
             catch (Exception ex)
@@ -117,12 +194,16 @@ namespace NowMediaMonitor
         
         private async Task UpdateCurrentSession()
         {
+            Console.WriteLine($"🔄 UpdateCurrentSession вызван (selectedSource: {selectedSource})");
+            
             // Отписываемся от старой сессии (WinRT объекты не требуют Dispose)
             var oldSession = currentSession;
             if (oldSession != null)
             {
                 try
                 {
+                    var oldAppId = oldSession.SourceAppUserModelId;
+                    Console.WriteLine($"📤 Отписываемся от старой сессии: {oldAppId}");
                     oldSession.MediaPropertiesChanged -= OnMediaPropertiesChanged;
                     oldSession.PlaybackInfoChanged -= OnPlaybackInfoChanged;
                     oldSession.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
@@ -135,6 +216,7 @@ namespace NowMediaMonitor
             
             if (currentSession == null)
             {
+                Console.WriteLine($"❌ Новая сессия не найдена");
                 SetNoPlayback();
                 return;
             }
@@ -142,11 +224,15 @@ namespace NowMediaMonitor
             // Подписываемся на события новой сессии
             try
             {
+                var newAppId = currentSession.SourceAppUserModelId;
+                Console.WriteLine($"📥 Подписываемся на новую сессию: {newAppId}");
+                
                 currentSession.MediaPropertiesChanged += OnMediaPropertiesChanged;
                 currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
                 currentSession.TimelinePropertiesChanged += OnTimelinePropertiesChanged;
                 
                 // Получаем начальное состояние
+                Console.WriteLine($"📊 Получаем начальное состояние новой сессии");
                 await UpdateMediaInfo();
             }
             catch (Exception ex)
@@ -229,6 +315,9 @@ namespace NowMediaMonitor
                 double position = timeline?.Position.TotalSeconds ?? 0;
                 double duration = timeline?.EndTime.TotalSeconds ?? 0;
                 bool isPlaying = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+                
+                // Получаем SourceAppUserModelId из currentSession
+                string sourceId = currentSession.SourceAppUserModelId ?? "";
 
                 bool trackChanged = artist != State.Artist || title != State.Title;
 
@@ -241,6 +330,7 @@ namespace NowMediaMonitor
                     State.Position = position;
                     State.Duration = duration;
                     State.IsPlaying = isPlaying;
+                    State.SourceId = sourceId;
                     
                     lastPosition = position;
                     lastIsPlaying = isPlaying;
@@ -252,6 +342,7 @@ namespace NowMediaMonitor
                     State.Position = position;
                     State.Duration = duration;
                     State.IsPlaying = isPlaying;
+                    State.SourceId = sourceId;
                     lastPosition = position;
                 }
             }
@@ -301,6 +392,7 @@ namespace NowMediaMonitor
                     if (config.TryGetProperty("selected_media_source", out var source))
                     {
                         selectedSource = source.GetString() ?? "";
+                        lastSelectedSource = selectedSource; // Синхронизируем оба поля
                         if (!string.IsNullOrEmpty(selectedSource) && selectedSource != "auto")
                         {
                             Console.WriteLine($"📻 Выбран источник: {selectedSource}");
@@ -316,16 +408,13 @@ namespace NowMediaMonitor
             {
                 httpSemaphore.Release();
             }
-            
-            // Отправляем список доступных источников на сервер
-            await SendAvailableSources().ConfigureAwait(false);
         }
         
-        private async Task SendAvailableSources()
+        private async Task SendAvailableSources(bool force = false)
         {
-            // Кешируем источники на 30 секунд
+            // Кешируем источники на 5 секунд
             var timeSinceLastEnum = (DateTime.Now - lastSourceEnumeration).TotalSeconds;
-            if (timeSinceLastEnum < SOURCE_CACHE_SECONDS)
+            if (!force && timeSinceLastEnum < SOURCE_CACHE_SECONDS)
             {
                 return;
             }
@@ -336,6 +425,7 @@ namespace NowMediaMonitor
                 var sessions = manager.GetSessions();
                 
                 var sources = new List<object>();
+                var currentSourceIds = new List<string>();
                 var seenIds = new HashSet<string>();
                 
                 // Обрабатываем сессии (WinRT объекты не требуют Dispose)
@@ -347,6 +437,7 @@ namespace NowMediaMonitor
                         if (!string.IsNullOrEmpty(appId) && !seenIds.Contains(appId))
                         {
                             seenIds.Add(appId);
+                            currentSourceIds.Add(appId);
                             
                             // Пытаемся получить читаемое имя
                             string displayName = appId;
@@ -370,22 +461,30 @@ namespace NowMediaMonitor
                     catch { }
                 }
                 
-                // Обновляем время последнего перечисления
-                lastSourceEnumeration = DateTime.Now;
+                // Проверяем, изменился ли список источников
+                bool sourcesChanged = !currentSourceIds.SequenceEqual(lastSentSources);
                 
-                await httpSemaphore.WaitAsync().ConfigureAwait(false);
-                try
+                if (sourcesChanged || force)
                 {
-                    var data = new { sources };
-                    var json = JsonSerializer.Serialize(data);
-                    using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    // Обновляем время последнего перечисления
+                    lastSourceEnumeration = DateTime.Now;
                     
-                    using var response = await httpClient.PostAsync($"{pythonServerUrl}/update_sources", content).ConfigureAwait(false);
-                    Console.WriteLine($"📻 Найдено источников: {sources.Count}");
-                }
-                finally
-                {
-                    httpSemaphore.Release();
+                    await httpSemaphore.WaitAsync().ConfigureAwait(false);
+                    try
+                    {
+                        var data = new { sources };
+                        var json = JsonSerializer.Serialize(data);
+                        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                        
+                        using var response = await httpClient.PostAsync($"{pythonServerUrl}/update_sources", content).ConfigureAwait(false);
+                        
+                        lastSentSources = currentSourceIds;
+                        Console.WriteLine($"📻 Отправлено источников: {sources.Count}");
+                    }
+                    finally
+                    {
+                        httpSemaphore.Release();
+                    }
                 }
             }
             catch
@@ -401,9 +500,11 @@ namespace NowMediaMonitor
             // Если источник не выбран, берем текущую сессию
             if (string.IsNullOrEmpty(selectedSource) || selectedSource == "auto")
             {
+                Console.WriteLine($"🔍 Режим auto - используем текущую сессию");
                 return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(manager.GetCurrentSession());
             }
 
+            Console.WriteLine($"🔍 Ищем сессию для источника: {selectedSource}");
             var sessions = manager.GetSessions();
             
             // Ищем сессию по выбранному источнику (WinRT объекты не требуют Dispose)
@@ -412,8 +513,10 @@ namespace NowMediaMonitor
                 try
                 {
                     var appId = session.SourceAppUserModelId;
+                    Console.WriteLine($"  - Проверяем сессию: {appId}");
                     if (appId == selectedSource)
                     {
+                        Console.WriteLine($"✅ Найдена сессия для {selectedSource}");
                         return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(session);
                     }
                 }
@@ -421,6 +524,7 @@ namespace NowMediaMonitor
             }
 
             // Если не нашли, возвращаем текущую
+            Console.WriteLine($"⚠️ Сессия для {selectedSource} не найдена, используем текущую");
             return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(manager.GetCurrentSession());
         }
 
@@ -458,7 +562,8 @@ namespace NowMediaMonitor
                     duration = State.Duration,
                     is_playing = State.IsPlaying,
                     cover_version = State.CoverVersion,
-                    status = State.Status
+                    status = State.Status,
+                    source_id = State.SourceId
                 };
 
                 var json = JsonSerializer.Serialize(data);
@@ -517,6 +622,7 @@ namespace NowMediaMonitor
 
                         // Dispose timers and locks
                         debounceTimer?.Dispose();
+                        configPollerTimer?.Dispose();
                         updateLock?.Dispose();
                         httpSemaphore?.Dispose();
                         httpClient?.Dispose();

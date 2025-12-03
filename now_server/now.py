@@ -6,7 +6,6 @@ import socket
 import json
 from pathlib import Path
 import sys
-import subprocess
 from now_server.cover_fetcher import cover_fetcher
 # Импорт config_manager из новой структуры
 from src.config.config_manager import config_manager
@@ -37,7 +36,8 @@ current_data = {
     "listeners": set(),
     "position": 0,      # текущая позиция в секундах
     "duration": 0,      # длительность трека в секундах
-    "is_playing": False # статус воспроизведения
+    "is_playing": False, # статус воспроизведения
+    "source_id": ""     # идентификатор источника медиа
 }
 
 # Добавляем переменные для оптимизации
@@ -106,7 +106,8 @@ async def notify_cover_replaced(artist, title):
             "is_playing": current_data["is_playing"],
             "cover_url": f"/cover?v={current_data['cover_version']}",
             "config": current_config,
-            "status": "active"
+            "status": "active",
+            "source_id": current_data["source_id"]
         }
     }
     await send_to_listeners(msg)
@@ -160,6 +161,14 @@ async def no_cover_png(request):
         return web.Response(status=404)
     return web.FileResponse(no_cover_path)
 
+@routes.get('/songinfo/effect.png')
+async def effect_png(request):
+    effect_path = os.path.join(output_dir, "effect.png")
+    if not os.path.exists(effect_path):
+        return web.Response(status=404, text="effect.png not found")
+    return web.FileResponse(effect_path)
+
+
 
 # ЭНДПОИНТ ДЛЯ ПОЛУЧЕНИЯ НАСТРОЕК
 @routes.get('/get_config')
@@ -200,6 +209,7 @@ async def update_from_cs(request):
         
         artist = data.get("artist", "Unknown Artist")
         title = data.get("title", "Unknown Title")
+        source_id = data.get("source_id", "")
         
         # Проверяем, сменился ли трек
         track_changed = (current_data["artist"] != artist or current_data["title"] != title)
@@ -210,7 +220,8 @@ async def update_from_cs(request):
             "title": title,
             "position": data.get("position", 0),
             "duration": data.get("duration", 0),
-            "is_playing": data.get("is_playing", False)
+            "is_playing": data.get("is_playing", False),
+            "source_id": source_id
         })
         
         # Если трек сменился, сначала загружаем обложку, потом отправляем данные
@@ -234,7 +245,8 @@ async def update_from_cs(request):
                         "is_playing": current_data["is_playing"],
                         "cover_url": f"/cover?v={current_data['cover_version']}",
                         "config": current_config,
-                        "status": data.get("status", "active")
+                        "status": data.get("status", "active"),
+                        "source_id": current_data["source_id"]
                     }
                 }
                 await send_to_listeners(msg)
@@ -275,7 +287,8 @@ async def fetch_cover_for_track(artist, title):
                 "is_playing": current_data["is_playing"],
                 "cover_url": f"/cover?v={current_data['cover_version']}",
                 "config": current_config,
-                "status": "active"
+                "status": "active",
+                "source_id": current_data["source_id"]
             }
         }
         await send_to_listeners(msg)
@@ -339,7 +352,8 @@ async def websocket_handler(request):
                 "is_playing": current_data["is_playing"],
                 "cover_url": f"/cover?v={current_data['cover_version']}",
                 "status": "active" if current_data["artist"] != "Не воспроизводится" else "inactive",
-                "config": current_config
+                "config": current_config,
+                "source_id": current_data["source_id"]
             }
         }
         await ws.send_json(initial_data)
@@ -356,6 +370,7 @@ app.add_routes([
     web.get('/cover', cover),
     web.get('/no_cover', no_cover),
     web.get('/songinfo/NoCover.png', no_cover_png),
+    web.get('/songinfo/effect.png', effect_png),
     web.get('/ws', websocket_handler),
     web.get('/get_config', get_config),
     web.get('/sources', get_sources),
@@ -368,42 +383,14 @@ app.add_routes([
 
 
 async def start_background_tasks(app):
-    print("⚙️ Сервер готов. Ожидание данных от C# MediaMonitor...")
-    
-    # Автоматически запускаем C# MediaMonitor
-    try:
-        mediamonitor_path = PROJECT_ROOT / "MediaMonitor"
-        if mediamonitor_path.exists():
-            print("🚀 Запуск C# MediaMonitor...")
-            
-            # Запускаем C# приложение с видимой консолью для отладки
-            process = subprocess.Popen(
-                ["dotnet", "run"],
-                cwd=str(mediamonitor_path),
-                # Убираем CREATE_NO_WINDOW чтобы видеть консоль
-                creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
-            )
-            
-            # Сохраняем процесс в app для возможности остановки
-            app['mediamonitor_process'] = process
-            print("✅ C# MediaMonitor запущен в отдельной консоли")
-        else:
-            print("⚠️ Папка MediaMonitor не найдена. Запустите вручную.")
-    except Exception as e:
-        print(f"⚠️ Не удалось запустить C# MediaMonitor: {e}")
-        print("   Запустите вручную: cd MediaMonitor && dotnet run")
+    print("⚙️ Сервер готов. Ожидание данных от MediaMonitor...")
+    # MediaMonitor теперь управляется через MediaMonitorManager в app.py
 
 
 async def cleanup_background_tasks(app):
-    """Останавливаем C# MediaMonitor при завершении сервера"""
-    if 'mediamonitor_process' in app:
-        try:
-            print("🛑 Остановка C# MediaMonitor...")
-            app['mediamonitor_process'].terminate()
-            app['mediamonitor_process'].wait(timeout=5)
-            print("✅ C# MediaMonitor остановлен")
-        except Exception as e:
-            print(f"⚠️ Ошибка при остановке C# MediaMonitor: {e}")
+    """Cleanup function for server shutdown"""
+    # MediaMonitor cleanup is handled by MediaMonitorManager in app.py
+    pass
 
 app.on_startup.append(start_background_tasks)
 app.on_cleanup.append(cleanup_background_tasks)

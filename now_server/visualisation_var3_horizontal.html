@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Now Playing v3 Horizontal</title>
-    <!-- Google Fonts: Montserrat - стильный популярный шрифт с поддержкой кириллицы -->
+    <!-- Локальныonts: Montserrat - стильный популярный шрифт с поддержкой кириллицы -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -107,17 +107,29 @@
             pointer-events: none;
         }
 
+        .cover-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            z-index: 4;
+            pointer-events: none;
+            object-fit: cover;
+        }
+
         .ambient-light {
             position: absolute;
-            top: -10px;
-            left: -10px;
-            right: -10px;
-            bottom: -10px;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
             border-radius: 12px;
             z-index: 0;
             opacity: 1;
             pointer-events: none;
-            filter: blur(25px);
+            filter: blur(15px);
             background: 
                 radial-gradient(circle at 0% 0%, var(--ambient-left-1, transparent) 0%, transparent 40%),
                 radial-gradient(circle at 50% 0%, var(--ambient-top-2, transparent) 0%, transparent 40%),
@@ -300,6 +312,16 @@
             width: 100%;
             transition: all 0.4s ease;
         }
+        .progress-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+        }
+        
+        .progress-wrapper > * {
+            align-self: center;
+        }
 
         /* Эффект стекла для progress-section - темное */
         .glass-effect.glass-dark .progress-section {
@@ -343,7 +365,6 @@
             border-radius: 3px;
             cursor: pointer;
             position: relative;
-            margin-bottom: 10px;
             overflow: hidden;
         }
 
@@ -375,12 +396,13 @@
             opacity: 1;
         }
 
-        .time-display {
-            display: flex;
-            justify-content: space-between;
+        .time-left,
+        .time-right {
             font-size: 18px;
-            color: var(--secondary-color);
+            color: var(--text-color);
             font-weight: 500;
+            min-width: 45px;
+            text-align: center;
         }
 
         .status-section {
@@ -454,6 +476,7 @@
                 <div class="ambient-light" id="ambientLight"></div>
                 <img class="album-cover cover-1 active" id="cover1" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
                 <img class="album-cover cover-2 inactive" id="cover2" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
+                <img class="cover-effect" src="/songinfo/effect.png" alt="Effect" onload="console.log('Effect loaded!')" onerror="console.error('Effect failed to load:', this.src)">
             </div>
 
             <!-- ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ -->
@@ -471,12 +494,12 @@
 
         <!-- ПОДЛОЖКА 3 - ПРОГРЕСС БАР (под обеими верхними подложками) -->
         <div class="progress-section">
-            <div class="progress-bar" id="progressBar">
-                <div class="progress" id="progress"></div>
-            </div>
-            <div class="time-display">
-                <span id="currentTime">0:00</span>
-                <span id="duration">0:00</span>
+            <div class="progress-wrapper">
+                <span class="time-left" id="currentTime">0:00</span>
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress" id="progress"></div>
+                </div>
+                <span class="time-right" id="duration">0:00</span>
             </div>
         </div>
 
@@ -738,8 +761,16 @@
             } else {
                 player.classList.remove('glass-effect', 'glass-dark', 'glass-light');
             }
+
+            // Управление эффектом на обложке
+            const coverEffectEnabled = config.cover_effect_enabled !== false; // По умолчанию включен
+            const coverEffect = document.querySelector('.cover-effect');
+            if (coverEffect) {
+                coverEffect.style.display = coverEffectEnabled ? 'block' : 'none';
+            }
         }
     }
+      
 
     // Обновление данных плеера
     function updatePlayer(data) {
@@ -1111,4 +1142,3 @@
     </script>
 </body>
 </html>
-

@@ -18,6 +18,7 @@ class ConfigManager:
             "text_color": "#ffffff",  # Цвет текста
             "wave_color": "#59e8c8",  # Цвет волны
             "wave_enabled": True,
+            "cover_effect_enabled": True,  # Эффект на обложке
             "align": "flex-end",
             "justify": "flex-end"
         }

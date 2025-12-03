@@ -97,6 +97,18 @@
     pointer-events: none;
 }
 
+.cover-effect {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    z-index: 4;
+    pointer-events: none;
+    object-fit: cover;
+}
+
 .ambient-light {
     position: absolute;
     top: -10px;
@@ -440,6 +452,7 @@
             <div class="ambient-light" id="ambientLight"></div>
             <img class="album-cover active" id="cover1" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
             <img class="album-cover inactive" id="cover2" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
+            <img class="cover-effect" src="/songinfo/effect.png" alt="Effect" onload="console.log('Effect loaded!')" onerror="console.error('Effect failed to load:', this.src)">
         </div>
 
         <!-- ПОДЛОЖКА 2 - ТРЕК + ВИЗУАЛИЗАЦИЯ -->
@@ -637,6 +650,13 @@
                 player.classList.add(`glass-${glassType}`);
             } else {
                 player.classList.remove('glass-effect', 'glass-dark', 'glass-light');
+            }
+
+            // Управление эффектом на обложке
+            const coverEffectEnabled = config.cover_effect_enabled !== false; // По умолчанию включен
+            const coverEffect = document.querySelector('.cover-effect');
+            if (coverEffect) {
+                coverEffect.style.display = coverEffectEnabled ? 'block' : 'none';
             }
         }
     }

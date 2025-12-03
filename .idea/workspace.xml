@@ -6,25 +6,18 @@
   <component name="ChangeListManager">
     <list default="true" id="38ef67e5-b008-4d2e-845d-b2e9851ddd32" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/MediaMonitor.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/MediaMonitor.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/Program.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/Program.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MediaMonitor/MediaMonitor.csproj" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/MediaMonitor.csproj" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.GeneratedMSBuildEditorConfig.editorconfig" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.GeneratedMSBuildEditorConfig.editorconfig" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.assets.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.assets.cache" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.csproj.CoreCompileInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.csproj.CoreCompileInputs.cache" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.genruntimeconfig.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.genruntimeconfig.cache" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/MediaMonitor.csproj.nuget.dgspec.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/MediaMonitor.csproj.nuget.dgspec.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/MediaMonitor.csproj.nuget.g.props" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/MediaMonitor.csproj.nuget.g.props" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
@@ -32,9 +25,6 @@
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/project.assets.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/project.assets.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/project.nuget.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/project.nuget.cache" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/now_server/common.js" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/common.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/now.py" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/now.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_horizontal.html" afterDir="false" />
@@ -42,6 +32,9 @@
       <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/now_server/visualisation_var3_horizontal.html" beforeDir="false" afterPath="$PROJECT_DIR$/now_server/visualisation_var3_horizontal.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/config_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/config_manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/app.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/app.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

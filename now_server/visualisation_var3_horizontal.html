@@ -735,6 +735,13 @@
                 }
             }
             
+            // Управление отображением времени и прогресс-бара
+            const showTime = config.show_time !== false; // По умолчанию показываем
+            const progressSection = document.querySelector('.progress-section');
+            if (progressSection) {
+                progressSection.style.display = showTime ? 'block' : 'none';
+            }
+            
             // Подсветка применяется только на основе цвета из изображения обложки
             // Акцентный цвет больше не используется для подсветки
 
@@ -877,15 +884,21 @@
         // Обновляем обложку только если есть cover_url
         // Если cover_url отсутствует, сохраняем текущую обложку
         if (data.cover_url && data.cover_url !== '') {
-            // Сохраняем текущий цвет как предыдущий перед переключением трека
-            // Это нужно для плавного перехода от одного цвета к другому
-            if (currentAmbientColor) {
-                previousAmbientColor = currentAmbientColor;
-            }
+            // Проверяем, изменился ли URL обложки (без timestamp)
+            const currentCoverUrl = currentCover.src ? currentCover.src.split('&t=')[0].split('?v=')[1] : null;
+            const newCoverVersion = data.cover_url.split('?v=')[1];
             
-            // Защита от race condition: создаем уникальный ID для текущей загрузки
-            const loadId = Date.now() + Math.random();
-            activeCoverLoadId = loadId;
+            // Загружаем обложку только если версия изменилась
+            if (currentCoverUrl !== newCoverVersion) {
+                // Сохраняем текущий цвет как предыдущий перед переключением трека
+                // Это нужно для плавного перехода от одного цвета к другому
+                if (currentAmbientColor) {
+                    previousAmbientColor = currentAmbientColor;
+                }
+                
+                // Защита от race condition: создаем уникальный ID для текущей загрузки
+                const loadId = Date.now() + Math.random();
+                activeCoverLoadId = loadId;
             
             // Определяем, какое изображение будет следующим для загрузки
             const loadingCover = nextCover;
@@ -986,22 +999,23 @@
                 loadingCover.src = '/no_cover';
                 loadingCover.onerror = null; // Сбрасываем обработчик, чтобы избежать бесконечного цикла
                 console.error('Ошибка загрузки обложки, используем no_cover.png');
-            };
-            
-            // Устанавливаем новый источник изображения
-            const newImageUrl = data.cover_url + `&t=${Date.now()}`;
-            loadingCover.src = newImageUrl;
-            
-            // Если изображение уже загружено (из кеша), onload может не сработать
-            // Проверяем это и вызываем обработчик вручную
-            if (loadingCover.complete && loadingCover.naturalWidth > 0) {
-                // Используем setTimeout, чтобы гарантировать, что onload установлен и loadId актуален
-                setTimeout(() => {
-                    // Проверяем, что загрузка все еще актуальна
-                    if (activeCoverLoadId === loadId && loadingCover.onload) {
-                        loadingCover.onload();
-                    }
-                }, 0);
+                };
+                
+                // Устанавливаем новый источник изображения
+                const newImageUrl = data.cover_url + `&t=${Date.now()}`;
+                loadingCover.src = newImageUrl;
+                
+                // Если изображение уже загружено (из кеша), onload может не сработать
+                // Проверяем это и вызываем обработчик вручную
+                if (loadingCover.complete && loadingCover.naturalWidth > 0) {
+                    // Используем setTimeout, чтобы гарантировать, что onload установлен и loadId актуален
+                    setTimeout(() => {
+                        // Проверяем, что загрузка все еще актуальна
+                        if (activeCoverLoadId === loadId && loadingCover.onload) {
+                            loadingCover.onload();
+                        }
+                    }, 0);
+                }
             }
         }
 

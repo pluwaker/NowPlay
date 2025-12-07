@@ -619,6 +619,13 @@
                 ambientLight.style.display = ambientLightEnabled ? 'block' : 'none';
             }
             
+            // Управление отображением времени и прогресс-бара
+            const showTime = config.show_time !== false; // По умолчанию показываем
+            const progressSection = document.querySelector('.progress-section');
+            if (progressSection) {
+                progressSection.style.display = showTime ? 'block' : 'none';
+            }
+            
             // Если подсветка выключена, убираем тени с обложек
             if (!ambientLightEnabled) {
                 if (cover1) cover1.style.boxShadow = 'none';
@@ -750,104 +757,111 @@
 
         // Обновляем обложку только если есть cover_url
         if (data.cover_url && data.cover_url !== '') {
-            // Защита от race condition
-            const loadId = Date.now() + Math.random();
-            activeCoverLoadId = loadId;
+            // Проверяем, изменился ли URL обложки (без timestamp)
+            const currentCoverUrl = currentCover.src ? currentCover.src.split('&t=')[0].split('?v=')[1] : null;
+            const newCoverVersion = data.cover_url.split('?v=')[1];
             
-            const trackTitle = data.title || title.textContent || null;
-            const trackArtist = data.artist || artist.textContent || null;
-            
-            const loadingCover = nextCover;
-            const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg') || currentCover.src === '/no_cover';
-            
-            // Скрываем загружаемую обложку перед загрузкой
-            loadingCover.classList.remove('active');
-            loadingCover.classList.add('inactive');
-            
-            loadingCover.onload = null;
-            loadingCover.onerror = null;
-            
-            loadingCover.onload = function() {
-                if (activeCoverLoadId !== loadId) return;
+            // Загружаем обложку только если версия изменилась
+            if (currentCoverUrl !== newCoverVersion) {
+                // Защита от race condition
+                const loadId = Date.now() + Math.random();
+                activeCoverLoadId = loadId;
                 
-                console.log('Обложка загружена:', { src: loadingCover.src, width: loadingCover.naturalWidth });
+                const trackTitle = data.title || title.textContent || null;
+                const trackArtist = data.artist || artist.textContent || null;
                 
-                if (!loadingCover.src || loadingCover.naturalWidth === 0) return;
-                if (!isFirstLoad && (loadingCover.src.includes('/no_cover') || loadingCover.src.includes('NoCover'))) return;
+                const loadingCover = nextCover;
+                const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg') || currentCover.src === '/no_cover';
                 
-                // Извлекаем цвета
-                if (colorExtractionTimeout) clearTimeout(colorExtractionTimeout);
+                // Скрываем загружаемую обложку перед загрузкой
+                loadingCover.classList.remove('active');
+                loadingCover.classList.add('inactive');
                 
-                colorExtractionTimeout = setTimeout(() => {
-                    colorExtractionTimeout = null;
+                loadingCover.onload = null;
+                loadingCover.onerror = null;
+                
+                loadingCover.onload = function() {
                     if (activeCoverLoadId !== loadId) return;
                     
-                    const extractColors = () => {
-                        Promise.all([
-                            getDominantColors(loadingCover, trackTitle, trackArtist),
-                            getEdgeColors(loadingCover, trackTitle, trackArtist)
-                        ])
-                            .then(([colors, edgeColors]) => {
-                                if (activeCoverLoadId !== loadId) return;
-                                console.log('Применяем цвета из изображения:', { colors, edgeColors });
-                                
-                                if (currentConfig.auto_colors_enabled) {
-                                    applyAutoColors(colors, edgeColors, currentConfig);
-                                } else {
-                                    updateAmbientLight(edgeColors, ambientLight, currentConfig, false);
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Не удалось извлечь цвета:', error);
-                            });
-                    };
+                    console.log('Обложка загружена:', { src: loadingCover.src, width: loadingCover.naturalWidth });
                     
-                    if (window.requestIdleCallback) {
-                        requestIdleCallback(extractColors, { timeout: 100 });
+                    if (!loadingCover.src || loadingCover.naturalWidth === 0) return;
+                    if (!isFirstLoad && (loadingCover.src.includes('/no_cover') || loadingCover.src.includes('NoCover'))) return;
+                    
+                    // Извлекаем цвета
+                    if (colorExtractionTimeout) clearTimeout(colorExtractionTimeout);
+                    
+                    colorExtractionTimeout = setTimeout(() => {
+                        colorExtractionTimeout = null;
+                        if (activeCoverLoadId !== loadId) return;
+                        
+                        const extractColors = () => {
+                            Promise.all([
+                                getDominantColors(loadingCover, trackTitle, trackArtist),
+                                getEdgeColors(loadingCover, trackTitle, trackArtist)
+                            ])
+                                .then(([colors, edgeColors]) => {
+                                    if (activeCoverLoadId !== loadId) return;
+                                    console.log('Применяем цвета из изображения:', { colors, edgeColors });
+                                    
+                                    if (currentConfig.auto_colors_enabled) {
+                                        applyAutoColors(colors, edgeColors, currentConfig);
+                                    } else {
+                                        updateAmbientLight(edgeColors, ambientLight, currentConfig, false);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Не удалось извлечь цвета:', error);
+                                });
+                        };
+                        
+                        if (window.requestIdleCallback) {
+                            requestIdleCallback(extractColors, { timeout: 100 });
+                        } else {
+                            setTimeout(extractColors, 0);
+                        }
+                    }, 50);
+                    
+                    // Плавный переход между обложками (crossfade)
+                    if (isFirstLoad) {
+                        console.log('Первая загрузка обложки');
+                        loadingCover.classList.remove('inactive');
+                        loadingCover.classList.add('active');
+                        if (currentCover !== loadingCover) {
+                            currentCover.classList.remove('active');
+                            currentCover.classList.add('inactive');
+                        }
+                        currentCover = loadingCover;
+                        nextCover = (loadingCover === cover1) ? cover2 : cover1;
                     } else {
-                        setTimeout(extractColors, 0);
-                    }
-                }, 50);
-                
-                // Плавный переход между обложками (crossfade)
-                if (isFirstLoad) {
-                    console.log('Первая загрузка обложки');
-                    loadingCover.classList.remove('inactive');
-                    loadingCover.classList.add('active');
-                    if (currentCover !== loadingCover) {
+                        console.log('Переключение обложки с crossfade');
+                        loadingCover.classList.remove('inactive');
+                        loadingCover.classList.add('active');
                         currentCover.classList.remove('active');
                         currentCover.classList.add('inactive');
+                        
+                        currentCover = loadingCover;
+                        nextCover = (loadingCover === cover1) ? cover2 : cover1;
                     }
-                    currentCover = loadingCover;
-                    nextCover = (loadingCover === cover1) ? cover2 : cover1;
-                } else {
-                    console.log('Переключение обложки с crossfade');
-                    loadingCover.classList.remove('inactive');
-                    loadingCover.classList.add('active');
-                    currentCover.classList.remove('active');
-                    currentCover.classList.add('inactive');
-                    
-                    currentCover = loadingCover;
-                    nextCover = (loadingCover === cover1) ? cover2 : cover1;
+                };
+                
+                loadingCover.onerror = () => {
+                    if (activeCoverLoadId !== loadId) return;
+                    loadingCover.src = '/no_cover';
+                    loadingCover.onerror = null;
+                    console.error('Ошибка загрузки обложки');
+                };
+                
+                const newImageUrl = data.cover_url + `&t=${Date.now()}`;
+                loadingCover.src = newImageUrl;
+                
+                if (loadingCover.complete && loadingCover.naturalWidth > 0) {
+                    setTimeout(() => {
+                        if (activeCoverLoadId === loadId && loadingCover.onload) {
+                            loadingCover.onload();
+                        }
+                    }, 0);
                 }
-            };
-            
-            loadingCover.onerror = () => {
-                if (activeCoverLoadId !== loadId) return;
-                loadingCover.src = '/no_cover';
-                loadingCover.onerror = null;
-                console.error('Ошибка загрузки обложки');
-            };
-            
-            const newImageUrl = data.cover_url + `&t=${Date.now()}`;
-            loadingCover.src = newImageUrl;
-            
-            if (loadingCover.complete && loadingCover.naturalWidth > 0) {
-                setTimeout(() => {
-                    if (activeCoverLoadId === loadId && loadingCover.onload) {
-                        loadingCover.onload();
-                    }
-                }, 0);
             }
         }
 

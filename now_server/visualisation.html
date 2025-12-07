@@ -501,6 +501,13 @@
             
             // Подсветка применяется только на основе цвета из изображения обложки
             // Акцентный цвет больше не используется для подсветки
+            
+            // Управление отображением времени и прогресс-бара
+            const showTime = config.show_time !== false; // По умолчанию показываем
+            const progressContainer = document.querySelector('.progress-container');
+            if (progressContainer) {
+                progressContainer.style.display = showTime ? 'block' : 'none';
+            }
 
             // Управление эффектом стекла
             if (config.glass_effect_enabled) {
@@ -648,15 +655,21 @@
 
         // Обновляем обложку
         if (data.cover_url) {
-            // Сохраняем текущий цвет как предыдущий перед переключением трека
-            // Это нужно для плавного перехода от одного цвета к другому
-            if (currentAmbientColor) {
-                previousAmbientColor = currentAmbientColor;
-            }
+            // Проверяем, изменился ли URL обложки (без timestamp)
+            const currentCoverUrl = currentCover.src ? currentCover.src.split('&t=')[0].split('?v=')[1] : null;
+            const newCoverVersion = data.cover_url.split('?v=')[1];
             
-            // Защита от race condition: создаем уникальный ID для текущей загрузки
-            const loadId = Date.now() + Math.random();
-            activeCoverLoadId = loadId;
+            // Загружаем обложку только если версия изменилась
+            if (currentCoverUrl !== newCoverVersion) {
+                // Сохраняем текущий цвет как предыдущий перед переключением трека
+                // Это нужно для плавного перехода от одного цвета к другому
+                if (currentAmbientColor) {
+                    previousAmbientColor = currentAmbientColor;
+                }
+                
+                // Защита от race condition: создаем уникальный ID для текущей загрузки
+                const loadId = Date.now() + Math.random();
+                activeCoverLoadId = loadId;
             
             // Определяем, какое изображение будет следующим для загрузки
             const loadingCover = nextCover;
@@ -732,13 +745,14 @@
                 }
             };
             
-            loadingCover.onerror = () => {
-                loadingCover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
-                // При ошибке загрузки обложки не применяем подсветку
-                // Акцентный цвет больше не используется
-            };
-            
-            loadingCover.src = data.cover_url + `&t=${Date.now()}`;
+                loadingCover.onerror = () => {
+                    loadingCover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+                    // При ошибке загрузки обложки не применяем подсветку
+                    // Акцентный цвет больше не используется
+                };
+                
+                loadingCover.src = data.cover_url + `&t=${Date.now()}`;
+            }
         }
 
         player.style.opacity = 1;

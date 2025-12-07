@@ -43,6 +43,8 @@ current_data = {
 # Добавляем переменные для оптимизации
 last_update_time = 0
 UPDATE_COOLDOWN = 0.1  # Минимальный интервал между обновлениями (100мс)
+active_cover_fetch_task = None  # Отслеживание активной задачи загрузки обложки
+last_cover_fetch_key = None  # Ключ последней загрузки обложки
 
 
 def is_port_in_use(port):
@@ -93,6 +95,12 @@ async def notify_cover_replaced(artist, title):
     
     # Троттлинг чтобы избежать частых обновлений
     if current_time - last_update_time < UPDATE_COOLDOWN:
+        return
+    
+    # Проверяем, что трек не изменился - если изменился, не обновляем
+    # (это означает что замена обложки произошла для старого трека)
+    if current_data["artist"] != artist or current_data["title"] != title:
+        print(f"⚠️ Пропускаем обновление обложки - трек уже сменился")
         return
         
     current_data["cover_version"] += 1
@@ -227,8 +235,9 @@ async def update_from_cs(request):
         # Если трек сменился, сначала загружаем обложку, потом отправляем данные
         if track_changed and artist != "Не воспроизводится":
             print(f"🎵 Новый трек от C#: {artist} - {title}")
-            # Загружаем обложку и отправляем обновление
-            await fetch_cover_for_track(artist, title)
+            # Создаем задачу загрузки обложки (не ждем её завершения)
+            global active_cover_fetch_task
+            active_cover_fetch_task = asyncio.create_task(fetch_cover_for_track(artist, title))
         else:
             # Если трек не сменился, отправляем обновление позиции/статуса
             current_time = asyncio.get_event_loop().time()
@@ -259,6 +268,26 @@ async def update_from_cs(request):
 
 async def fetch_cover_for_track(artist, title):
     """Загружает обложку для трека через cover_fetcher"""
+    global active_cover_fetch_task, last_cover_fetch_key
+    
+    # Создаем уникальный ключ для этого трека
+    fetch_key = f"{artist}|{title}"
+    
+    # Если уже идет загрузка для этого же трека, пропускаем
+    if last_cover_fetch_key == fetch_key and active_cover_fetch_task and not active_cover_fetch_task.done():
+        print(f"⚠️ Пропускаем дублирующий запрос обложки для: {artist} - {title}")
+        return
+    
+    # Отменяем предыдущую задачу, если она для другого трека
+    if active_cover_fetch_task and not active_cover_fetch_task.done():
+        active_cover_fetch_task.cancel()
+        try:
+            await active_cover_fetch_task
+        except asyncio.CancelledError:
+            pass
+    
+    last_cover_fetch_key = fetch_key
+    
     try:
         # Используем cover_fetcher для получения обложки
         cover_path, cover_updated = await cover_fetcher.get_best_cover(

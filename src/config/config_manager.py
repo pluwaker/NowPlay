@@ -20,7 +20,8 @@ class ConfigManager:
             "wave_enabled": True,
             "cover_effect_enabled": True,  # Эффект на обложке
             "align": "flex-end",
-            "justify": "flex-end"
+            "justify": "flex-end",
+            "show_time": True  # Показывать время и прогресс-бар
         }
 
     def load_config(self):

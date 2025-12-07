@@ -9,7 +9,7 @@ class Config:
     OUTPUT_DIR = PROJECT_ROOT / "songinfo"
 
     # Настройки сервера
-    DEFAULT_PORT = 8080
+    DEFAULT_PORT = 58080
     CHECK_INTERVAL = 3  # секунды
 
     # Настройки по умолчанию

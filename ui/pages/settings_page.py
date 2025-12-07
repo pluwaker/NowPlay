@@ -619,7 +619,7 @@ class SettingsPage(ctk.CTkFrame):
 
         # Эффект на обложке
         cover_effect_switch_frame = ctk.CTkFrame(self.switches_frame, fg_color="transparent")
-        cover_effect_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
+        cover_effect_switch_frame.pack(fill="x", padx=20, pady=(0, 10))
 
         ctk.CTkLabel(
             cover_effect_switch_frame,
@@ -636,6 +636,26 @@ class SettingsPage(ctk.CTkFrame):
             command=self.toggle_cover_effect
         )
         self.cover_effect_switch.pack(side="right")
+
+        # Показывать время
+        show_time_switch_frame = ctk.CTkFrame(self.switches_frame, fg_color="transparent")
+        show_time_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            show_time_switch_frame,
+            text="Показывать время",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.show_time_switch_var = ctk.BooleanVar(value=self.config_data.get("show_time", True))
+        self.show_time_switch = ctk.CTkSwitch(
+            show_time_switch_frame,
+            text="",
+            variable=self.show_time_switch_var,
+            command=self.toggle_show_time
+        )
+        self.show_time_switch.pack(side="right")
 
         # Сохраняем список всех кнопок цветов для управления их состоянием
         self.color_buttons = [
@@ -1022,6 +1042,12 @@ class SettingsPage(ctk.CTkFrame):
     def toggle_cover_effect(self):
         """Переключает эффект на обложке"""
         self.config_data["cover_effect_enabled"] = self.cover_effect_switch_var.get()
+        # Автоматическое сохранение
+        self.auto_save_settings()
+
+    def toggle_show_time(self):
+        """Переключает отображение времени"""
+        self.config_data["show_time"] = self.show_time_switch_var.get()
         # Автоматическое сохранение
         self.auto_save_settings()
 

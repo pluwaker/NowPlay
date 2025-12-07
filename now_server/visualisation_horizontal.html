@@ -499,7 +499,13 @@
                 if (cover1) cover1.style.boxShadow = 'none';
                 if (cover2) cover2.style.boxShadow = 'none';
             }
-
+            
+            // Управление отображением времени и прогресс-бара
+            const showTime = config.show_time !== false; // По умолчанию показываем
+            const progressContainer = document.querySelector('.progress-container');
+            if (progressContainer) {
+                progressContainer.style.display = showTime ? 'block' : 'none';
+            }
 
             if (config.wave_enabled) {
                 animateVisualizer(visualizer, config);
@@ -603,13 +609,19 @@
         updateProgress();
 
         if (data.cover_url) {
-            if (currentAmbientColor) {
-                previousAmbientColor = currentAmbientColor;
-            }
+            // Проверяем, изменился ли URL обложки (без timestamp)
+            const currentCoverUrl = currentCover.src ? currentCover.src.split('&t=')[0].split('?v=')[1] : null;
+            const newCoverVersion = data.cover_url.split('?v=')[1];
             
-            // Защита от race condition: создаем уникальный ID для текущей загрузки
-            const loadId = Date.now() + Math.random();
-            activeCoverLoadId = loadId;
+            // Загружаем обложку только если версия изменилась
+            if (currentCoverUrl !== newCoverVersion) {
+                if (currentAmbientColor) {
+                    previousAmbientColor = currentAmbientColor;
+                }
+                
+                // Защита от race condition: создаем уникальный ID для текущей загрузки
+                const loadId = Date.now() + Math.random();
+                activeCoverLoadId = loadId;
             
             const loadingCover = nextCover;
             const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg');
@@ -678,11 +690,12 @@
                 }
             };
             
-            loadingCover.onerror = () => {
-                loadingCover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
-            };
-            
-            loadingCover.src = data.cover_url + `&t=${Date.now()}`;
+                loadingCover.onerror = () => {
+                    loadingCover.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjMzMzIi8+PHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+Tm8gY292ZXI8L3RleHQ+PC9zdmc+';
+                };
+                
+                loadingCover.src = data.cover_url + `&t=${Date.now()}`;
+            }
         }
 
         player.style.opacity = 1;

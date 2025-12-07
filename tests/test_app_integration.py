@@ -32,7 +32,7 @@ class MockApp:
         """Simplified start_server logic for testing"""
         try:
             # Simulate finding port
-            self.port = 8080
+            self.port = 58080
             self.obs_url = f"http://localhost:{self.port}/index.html"
             
             # Simulate starting server thread
@@ -99,7 +99,7 @@ class TestAppIntegration(unittest.TestCase):
         
         # Verify server started
         self.assertTrue(result)
-        self.assertEqual(app.port, 8080)
+        self.assertEqual(app.port, 58080)
         self.assertTrue(app.is_server_running())
         
         # Verify MediaMonitor was started
@@ -118,7 +118,7 @@ class TestAppIntegration(unittest.TestCase):
         
         # Verify server still started (returns "warning")
         self.assertEqual(result, "warning")
-        self.assertEqual(app.port, 8080)
+        self.assertEqual(app.port, 58080)
         self.assertTrue(app.is_server_running())
         
         # Verify MediaMonitor start was attempted
@@ -129,7 +129,7 @@ class TestAppIntegration(unittest.TestCase):
         app = MockApp()
         
         # Setup running server
-        app.port = 8080
+        app.port = 58080
         app.server_thread = Mock()
         app.server_thread.is_alive = Mock(return_value=True)
         app.server_process = app.server_thread
@@ -172,7 +172,7 @@ class TestAppIntegration(unittest.TestCase):
         app = MockApp()
         
         # Setup running server
-        app.port = 8080
+        app.port = 58080
         app.server_thread = Mock()
         app.server_thread.is_alive = Mock(return_value=True)
         app.server_process = app.server_thread

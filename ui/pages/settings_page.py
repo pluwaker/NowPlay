@@ -14,9 +14,8 @@ import json
 import threading
 import colorsys
 
-# Добавляем путь к корневой папке для импорта config_manager
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from config_manager import config_manager
+# Импорт config_manager из новой структуры
+from src.config.config_manager import config_manager
 
 
 class ModernColorPicker(ctk.CTkToplevel):
@@ -304,8 +303,15 @@ class SettingsPage(ctk.CTkFrame):
         super().__init__(parent, fg_color="#1e1e1e")
         self.controller = controller
         self.config_data = config_manager.load_config()
+        self.current_source_id = ""  # Task 7.1: Добавить поле current_source_id
 
         self.create_widgets()
+        
+        # Task 7.2: Добавить автоматический вызов refresh_sources при создании
+        self.after(100, self.refresh_sources)
+        
+        # Task 7.6: Вызвать start_source_monitoring в __init__
+        self.start_source_monitoring()
 
     def create_widgets(self):
         # Создаем прокручиваемый контейнер для всего контента
@@ -597,7 +603,7 @@ class SettingsPage(ctk.CTkFrame):
 
         # Волна
         wave_switch_frame = ctk.CTkFrame(self.switches_frame, fg_color="transparent")
-        wave_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
+        wave_switch_frame.pack(fill="x", padx=20, pady=(0, 10))
 
         ctk.CTkLabel(
             wave_switch_frame,
@@ -614,6 +620,26 @@ class SettingsPage(ctk.CTkFrame):
             command=self.toggle_wave
         )
         self.wave_switch.pack(side="right")
+
+        # Эффект на обложке
+        cover_effect_switch_frame = ctk.CTkFrame(self.switches_frame, fg_color="transparent")
+        cover_effect_switch_frame.pack(fill="x", padx=20, pady=(0, 15))
+
+        ctk.CTkLabel(
+            cover_effect_switch_frame,
+            text="Эффект на обложке",
+            font=ctk.CTkFont(size=14),
+            text_color="#cccccc"
+        ).pack(side="left")
+
+        self.cover_effect_switch_var = ctk.BooleanVar(value=self.config_data.get("cover_effect_enabled", True))
+        self.cover_effect_switch = ctk.CTkSwitch(
+            cover_effect_switch_frame,
+            text="",
+            variable=self.cover_effect_switch_var,
+            command=self.toggle_cover_effect
+        )
+        self.cover_effect_switch.pack(side="right")
 
         # Сохраняем список всех кнопок цветов для управления их состоянием
         self.color_buttons = [
@@ -865,7 +891,8 @@ class SettingsPage(ctk.CTkFrame):
         # Обновляем подпись
         count = len(sources)
         self.source_display_label.configure(
-            text=f"({count} источников)" if count > 0 else "(Нет источников)"
+            text=f"({count} источников)" if count > 0 else "(Нет источников)",
+            text_color="#888888"
         )
 
     def change_source(self, choice):
@@ -996,6 +1023,12 @@ class SettingsPage(ctk.CTkFrame):
         # Автоматическое сохранение
         self.auto_save_settings()
 
+    def toggle_cover_effect(self):
+        """Переключает эффект на обложке"""
+        self.config_data["cover_effect_enabled"] = self.cover_effect_switch_var.get()
+        # Автоматическое сохранение
+        self.auto_save_settings()
+
     def toggle_auto_colors(self):
         """Переключает автоматические цвета"""
         self.config_data["auto_colors_enabled"] = self.auto_colors_switch_var.get()
@@ -1084,6 +1117,71 @@ class SettingsPage(ctk.CTkFrame):
         except Exception as e:
             # Тихая ошибка - не показываем пользователю при каждом изменении
             print(f"⚠️ Не удалось автоматически сохранить настройки: {e}")
+
+    def start_source_monitoring(self):
+        """Task 7.3: Запускает периодическое обновление активного источника"""
+        self.update_active_source()
+        # Запланировать следующий вызов через 3 секунды
+        self.after(3000, self.start_source_monitoring)
+    
+    def update_active_source(self):
+        """Task 7.4: Обновляет информацию об активном источнике"""
+        server_url = self.get_server_url()
+        if not server_url:
+            return
+        
+        def fetch_active_source():
+            try:
+                # Создать фоновый поток для HTTP-запроса к /get_config
+                req = urllib.request.Request(f"{server_url}/get_config")
+                req.add_header('User-Agent', 'NowPlay/1.0')
+                with urllib.request.urlopen(req, timeout=2) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read().decode('utf-8'))
+                        # Извлечь selected_media_source из ответа
+                        source_id = data.get("selected_media_source", "auto")
+                        
+                        # Вызвать highlight_active_source через self.after
+                        self.after(0, self.highlight_active_source, source_id)
+            except:
+                # Обработать исключения (игнорировать)
+                pass
+        
+        # Запускаем в отдельном потоке
+        thread = threading.Thread(target=fetch_active_source, daemon=True)
+        thread.start()
+    
+    def highlight_active_source(self, source_id):
+        """Task 7.5: Визуально выделяет активный источник"""
+        # Сохранить source_id в self.current_source_id
+        self.current_source_id = source_id
+        
+        # Обновить source_display_label с информацией об активном источнике
+        # Показать "Авто" если source_id == "auto" или пустой
+        if source_id == "auto" or source_id == "":
+            self.source_display_label.configure(
+                text=f"({len(self.sources_map)} источников) - Авто",
+                text_color="#888888"
+            )
+        else:
+            # Ищем display_name для source_id
+            display_name = None
+            for name, sid in self.sources_map.items():
+                if sid == source_id:
+                    display_name = name
+                    break
+            
+            if display_name:
+                # Использовать зеленый цвет (#1db954) для активного источника
+                self.source_display_label.configure(
+                    text=f"({len(self.sources_map)} источников) - Активен: {display_name}",
+                    text_color="#1db954"
+                )
+            else:
+                self.source_display_label.configure(
+                    text=f"({len(self.sources_map)} источников)",
+                    text_color="#888888"
+                )
 
     def copy_url(self):
         """Копирует URL в буфер обмена"""

@@ -101,10 +101,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            box-shadow: 0 0 25px rgba(29, 185, 84, 0.8),
-                        0 0 45px rgba(29, 185, 84, 0.6),
-                        0 0 65px rgba(29, 185, 84, 0.4);
+            box-shadow: none;
             transition: box-shadow 0.8s ease, opacity 0.6s ease-in-out;
+            overflow: hidden;
         }
         .visualizer-full-width {
             width: 100%;
@@ -129,6 +128,17 @@
             z-index: 2;
             pointer-events: none;
         }
+        .cover-effect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            z-index: 4;
+            pointer-events: none;
+            object-fit: cover;
+        }
         .ambient-light {
             position: absolute;
             top: -15px;
@@ -139,12 +149,16 @@
             z-index: 1;
             opacity: 1;
             pointer-events: none;
-            filter: blur(12px);
-            background: radial-gradient(circle at 50% 20%, 
-                var(--ambient-color, rgba(29, 185, 84, 0.85)) 0%,
-                transparent 65%);
-            animation: ambientPulse 3s ease-in-out infinite;
-            transition: background 0.5s ease;
+            filter: blur(25px);
+            background: 
+                radial-gradient(circle at 0% 0%, var(--ambient-left-1, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 50% 0%, var(--ambient-top-2, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 100% 0%, var(--ambient-right-1, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 100% 50%, var(--ambient-right-2, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, var(--ambient-right-3, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 50% 100%, var(--ambient-bottom-2, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, var(--ambient-left-3, transparent) 0%, transparent 40%),
+                radial-gradient(circle at 0% 50%, var(--ambient-left-2, transparent) 0%, transparent 40%);
         }
         @keyframes ambientPulse {
             0%, 100% {
@@ -341,6 +355,7 @@
                     <div class="ambient-light" id="ambientLight"></div>
                     <img class="album-cover active" id="cover1" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
                     <img class="album-cover inactive" id="cover2" src="" alt="Album Cover" onclick="goToIndex()" style="cursor: pointer;">
+                    <img class="cover-effect" src="/songinfo/effect.png" alt="Effect" onload="console.log('Effect loaded!')" onerror="console.error('Effect failed to load:', this.src)">
                 </div>
             </div>
             <div class="content-section">
@@ -377,6 +392,7 @@
         <div class="status" id="status"></div>
     </div>
 
+    <script src="common.js"></script>
     <script>
     const player = document.getElementById('player');
     const cover1 = document.getElementById('cover1');
@@ -406,9 +422,15 @@
     let currentAmbientColor = null;
     let previousAmbientColor = null;
     let colorTransitionAnimation = null;
-    let lastActiveTimestamp = 0; // Timestamp последнего активного сообщения для защиты от устаревших inactive
-    let noCoverTimeout = null; // Таймер для задержки показа NoCover.png
+    let activeCoverLoadId = null;
+    let lastActiveTimestamp = 0;
+    let noCoverTimeout = null;
+    let colorExtractionTimeout = null;
+    let pendingCoverUrl = null;
 
+    // Используем глобальные переменные из common.js
+    const colorCache = window.colorCache;
+    const performanceStats = window.performanceStats;
 
     function updateProgress() {
         if (totalDuration > 0) {
@@ -421,511 +443,6 @@
             currentTimeEl.textContent = '0:00';
             durationEl.textContent = '0:00';
         }
-    }
-
-    function formatTime(seconds) {
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    function startProgressUpdate() {
-        if (progressInterval) clearInterval(progressInterval);
-        progressInterval = setInterval(() => {
-            if (isPlaying && currentPosition < totalDuration) {
-                currentPosition += 1;
-                updateProgress();
-            }
-        }, 1000);
-    }
-
-    function stopProgressUpdate() {
-        if (progressInterval) {
-            clearInterval(progressInterval);
-            progressInterval = null;
-        }
-    }
-
-    function getDominantColors(image) {
-        return new Promise((resolve, reject) => {
-            try {
-                if (!image || !image.complete || image.naturalWidth === 0) {
-                    reject(new Error('Изображение не загружено'));
-                    return;
-                }
-
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const size = Math.min(200, Math.max(image.naturalWidth, image.naturalHeight));
-                canvas.width = size;
-                canvas.height = size;
-                
-                ctx.drawImage(image, 0, 0, size, size);
-                const imageData = ctx.getImageData(0, 0, size, size);
-                const data = imageData.data;
-                
-                const colorMap = new Map();
-                
-                for (let i = 0; i < data.length; i += 32) {
-                    const alpha = data[i + 3];
-                    if (alpha > 10) {
-                        const r = data[i];
-                        const g = data[i + 1];
-                        const b = data[i + 2];
-                        
-                        const roundedR = Math.round(r / 16) * 16;
-                        const roundedG = Math.round(g / 16) * 16;
-                        const roundedB = Math.round(b / 16) * 16;
-                        const key = `${roundedR},${roundedG},${roundedB}`;
-                        
-                        if (!colorMap.has(key)) {
-                            colorMap.set(key, { r: 0, g: 0, b: 0, count: 0 });
-                        }
-                        const color = colorMap.get(key);
-                        color.r += r;
-                        color.g += g;
-                        color.b += b;
-                        color.count++;
-                    }
-                }
-                
-                if (colorMap.size === 0) {
-                    reject(new Error('Не удалось извлечь данные'));
-                    return;
-                }
-                
-                const colors = Array.from(colorMap.entries()).map(([key, value]) => {
-                    const r = Math.round(value.r / value.count);
-                    const g = Math.round(value.g / value.count);
-                    const b = Math.round(value.b / value.count);
-                    const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
-                    const hue = getHue(r, g, b);
-                    return { r, g, b, count: value.count, luminance, hue };
-                });
-                
-                const nonGrayColors = colors.filter(c => !isColorGray(c.r, c.g, c.b, 30));
-                const colorsToFilter = nonGrayColors.length >= 2 ? nonGrayColors : colors;
-                const lightColors = colorsToFilter.filter(c => c.luminance >= 100);
-                let filteredColors = lightColors.length >= 2 ? lightColors : colorsToFilter.filter(c => c.luminance >= 70 && !isColorGray(c.r, c.g, c.b, 30));
-                
-                if (filteredColors.length < 2) {
-                    filteredColors = colorsToFilter.filter(c => c.luminance >= 50 && !isColorGray(c.r, c.g, c.b, 30));
-                }
-                if (filteredColors.length < 2) {
-                    filteredColors = colorsToFilter.filter(c => c.luminance >= 30 && !isColorGray(c.r, c.g, c.b, 30));
-                }
-                if (filteredColors.length === 0) {
-                    filteredColors = colorsToFilter.length > 0 ? colorsToFilter : colors;
-                }
-                
-                filteredColors.sort((a, b) => b.count - a.count);
-                
-                let firstColor = filteredColors[0];
-                const veryLightColors = filteredColors.filter(c => c.luminance >= 100);
-                if (veryLightColors.length > 0) {
-                    firstColor = veryLightColors[0];
-                }
-                
-                let secondColor = filteredColors[1] || filteredColors[0];
-                
-                if (filteredColors.length > 1) {
-                    const firstHue = firstColor.hue;
-                    const minHueDifference = 30;
-                    const minContrast = 120;
-                    const isFirstRedPink = isRedOrPink(firstHue);
-                    
-                    let lightColorsWithDifferentHue = filteredColors.filter(c => {
-                        if (c === firstColor) return false;
-                        if (isFirstRedPink && isRedOrPink(c.hue)) return false;
-                        if (isFirstRedPink) {
-                            const hueDiff = Math.abs(c.hue - firstHue);
-                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            if (actualHueDiff < 90) return false;
-                        }
-                        const hueDiff = Math.abs(c.hue - firstHue);
-                        const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                        return c.luminance >= 100 && actualHueDiff >= minHueDifference;
-                    });
-                    
-                    if (lightColorsWithDifferentHue.length > 0) {
-                        lightColorsWithDifferentHue.sort((a, b) => {
-                            return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                        });
-                        secondColor = lightColorsWithDifferentHue[0];
-                    } else {
-                        const lightContrasting = filteredColors.filter(c => {
-                            if (c === firstColor) return false;
-                            if (isFirstRedPink && isRedOrPink(c.hue)) return false;
-                            if (isFirstRedPink) {
-                                const hueDiff = Math.abs(c.hue - firstHue);
-                                const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                if (actualHueDiff < 90) return false;
-                            }
-                            const hueDiff = Math.abs(c.hue - firstHue);
-                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            return c.luminance >= 100 && actualHueDiff >= 15 && colorDistance(firstColor, c) >= minContrast;
-                        });
-                        
-                        if (lightContrasting.length > 0) {
-                            lightContrasting.sort((a, b) => {
-                                return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                            });
-                            secondColor = lightContrasting[0];
-                        } else {
-                            const allLight = filteredColors.filter(c => {
-                                if (c.luminance < 100 || c === firstColor) return false;
-                                if (isFirstRedPink && isRedOrPink(c.hue)) return false;
-                                if (isFirstRedPink) {
-                                    const hueDiff = Math.abs(c.hue - firstHue);
-                                    const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                    if (actualHueDiff < 90) return false;
-                                }
-                                return true;
-                            });
-                            if (allLight.length > 0) {
-                                allLight.sort((a, b) => {
-                                    return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                                });
-                                secondColor = allLight[0];
-                            }
-                        }
-                    }
-                    
-                    const finalHueDiff = Math.abs(secondColor.hue - firstHue);
-                    const actualFinalHueDiff = finalHueDiff > 180 ? 360 - finalHueDiff : finalHueDiff;
-                    
-                    if (actualFinalHueDiff < 20 && filteredColors.length > 2) {
-                        const oppositeHue = (firstHue + 180) % 360;
-                        const colorsNearOpposite = filteredColors.filter(c => {
-                            if (c === firstColor) return false;
-                            if (isFirstRedPink && isRedOrPink(c.hue)) return false;
-                            if (isFirstRedPink) {
-                                const hueDiff = Math.abs(c.hue - firstHue);
-                                const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                                if (actualHueDiff < 90) return false;
-                            }
-                            const hueDiff = Math.abs(c.hue - oppositeHue);
-                            const actualDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            return actualDiff < 60 && c.luminance >= 70;
-                        });
-                        
-                        if (colorsNearOpposite.length > 0) {
-                            colorsNearOpposite.sort((a, b) => b.luminance - a.luminance);
-                            secondColor = colorsNearOpposite[0];
-                        }
-                    }
-                }
-                
-                const isFirstRedPinkFinal = isRedOrPink(firstColor.hue);
-                const isSecondRedPinkFinal = isRedOrPink(secondColor.hue);
-                
-                if (isFirstRedPinkFinal && isSecondRedPinkFinal) {
-                    const alternativeColors = filteredColors.filter(c => {
-                        if (c === firstColor) return false;
-                        return !isRedOrPink(c.hue);
-                    });
-                    
-                    if (alternativeColors.length > 0) {
-                        alternativeColors.sort((a, b) => {
-                            return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                        });
-                        secondColor = alternativeColors[0];
-                    } else {
-                        const nonRedPink = filteredColors.filter(c => {
-                            if (c === firstColor) return false;
-                            const hueDiff = Math.abs(c.hue - firstColor.hue);
-                            const actualHueDiff = hueDiff > 180 ? 360 - hueDiff : hueDiff;
-                            return actualHueDiff > 60;
-                        });
-                        
-                        if (nonRedPink.length > 0) {
-                            nonRedPink.sort((a, b) => {
-                                return colorDistance(firstColor, b) - colorDistance(firstColor, a);
-                            });
-                            secondColor = nonRedPink[0];
-                        }
-                    }
-                }
-                
-                resolve({
-                    first: `rgba(${firstColor.r}, ${firstColor.g}, ${firstColor.b}, 0.85)`,
-                    second: `rgba(${secondColor.r}, ${secondColor.g}, ${secondColor.b}, 0.85)`
-                });
-            } catch (error) {
-                console.error('Ошибка в getDominantColors:', error);
-                reject(error);
-            }
-        });
-    }
-
-    function getDominantColor(image) {
-        return getDominantColors(image).then(colors => colors.first);
-    }
-
-    function lightenColor(color, amount = 30) {
-        const rgb = parseColor(color);
-        const r = Math.min(255, rgb.r + amount);
-        const g = Math.min(255, rgb.g + amount);
-        const b = Math.min(255, rgb.b + amount);
-        return `rgba(${r}, ${g}, ${b}, 0.85)`;
-    }
-
-    function darkenColor(color, amount = 30) {
-        const rgb = parseColor(color);
-        const r = Math.max(0, rgb.r - amount);
-        const g = Math.max(0, rgb.g - amount);
-        const b = Math.max(0, rgb.b - amount);
-        return `rgba(${r}, ${g}, ${b}, 1)`;
-    }
-
-    function desaturateColor(color, factor = 0.5) {
-        const rgb = parseColor(color);
-        const luminance = Math.round(0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
-        const r = Math.round(rgb.r * factor + luminance * (1 - factor));
-        const g = Math.round(rgb.g * factor + luminance * (1 - factor));
-        const b = Math.round(rgb.b * factor + luminance * (1 - factor));
-        return `rgba(${r}, ${g}, ${b}, 1)`;
-    }
-
-    function isColorDark(color, threshold = 128) {
-        const rgb = parseColor(color);
-        const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
-        return luminance < threshold;
-    }
-
-    function isColorGray(r, g, b, threshold = 30) {
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const delta = max - min;
-        return delta < threshold;
-    }
-
-    function isRedOrPink(hue) {
-        return (hue >= 280 && hue <= 360) || (hue >= 0 && hue <= 50);
-    }
-
-    function getHue(r, g, b) {
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const delta = max - min;
-        
-        if (delta === 0) return 0;
-        
-        let hue = 0;
-        if (max === r) {
-            hue = ((g - b) / delta) % 6;
-        } else if (max === g) {
-            hue = (b - r) / delta + 2;
-        } else {
-            hue = (r - g) / delta + 4;
-        }
-        
-        hue = Math.round(hue * 60);
-        if (hue < 0) hue += 360;
-        return hue;
-    }
-
-    function colorDistance(color1, color2) {
-        const rgb1 = typeof color1 === 'object' ? color1 : parseColor(color1);
-        const rgb2 = typeof color2 === 'object' ? color2 : parseColor(color2);
-        
-        const dr = rgb1.r - rgb2.r;
-        const dg = rgb1.g - rgb2.g;
-        const db = rgb1.b - rgb2.b;
-        
-        const lum1 = 0.299 * rgb1.r + 0.587 * rgb1.g + 0.114 * rgb1.b;
-        const lum2 = 0.299 * rgb2.r + 0.587 * rgb2.g + 0.114 * rgb2.b;
-        const dlum = Math.abs(lum1 - lum2);
-        
-        const hue1 = getHue(rgb1.r, rgb1.g, rgb1.b);
-        const hue2 = getHue(rgb2.r, rgb2.g, rgb2.b);
-        let hueDiff = Math.abs(hue1 - hue2);
-        if (hueDiff > 180) hueDiff = 360 - hueDiff;
-        
-        return Math.sqrt(dr * dr + dg * dg + db * db) + dlum * 2 + hueDiff * 3;
-    }
-
-    function ensureLightColor(color, minLuminance = 180) {
-        const rgb = parseColor(color);
-        const currentLuminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b);
-        
-        if (currentLuminance < minLuminance) {
-            const scale = minLuminance / (currentLuminance || 1);
-            const r = Math.min(255, Math.round(rgb.r * scale));
-            const g = Math.min(255, Math.round(rgb.g * scale));
-            const b = Math.min(255, Math.round(rgb.b * scale));
-            return `rgba(${r}, ${g}, ${b}, 0.85)`;
-        }
-        
-        return color;
-    }
-
-    function parseColor(color) {
-        let r, g, b;
-        
-        if (color.startsWith('rgba(')) {
-            const rgb = color.replace('rgba(', '').replace(')', '').split(',');
-            r = parseInt(rgb[0].trim());
-            g = parseInt(rgb[1].trim());
-            b = parseInt(rgb[2].trim());
-        } else if (color.startsWith('#')) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
-            if (result) {
-                r = parseInt(result[1], 16);
-                g = parseInt(result[2], 16);
-                b = parseInt(result[3], 16);
-            } else {
-                r = 29; g = 185; b = 84;
-            }
-        } else {
-            r = 29; g = 185; b = 84;
-        }
-        
-        return { r, g, b };
-    }
-
-    function transitionAmbientLight(fromColor, toColor, duration = 800) {
-        if (colorTransitionAnimation) {
-            cancelAnimationFrame(colorTransitionAnimation);
-        }
-        
-        const fromRGB = parseColor(fromColor);
-        const toRGB = parseColor(toColor);
-        
-        const startTime = performance.now();
-        const deltaR = toRGB.r - fromRGB.r;
-        const deltaG = toRGB.g - fromRGB.g;
-        const deltaB = toRGB.b - fromRGB.b;
-        
-        function animate(currentTime) {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            const easeProgress = progress < 0.5 
-                ? 2 * progress * progress 
-                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-            
-            const currentR = Math.round(fromRGB.r + deltaR * easeProgress);
-            const currentG = Math.round(fromRGB.g + deltaG * easeProgress);
-            const currentB = Math.round(fromRGB.b + deltaB * easeProgress);
-            
-            const colorString = `rgba(${currentR}, ${currentG}, ${currentB}, 0.85)`;
-            
-            if (currentConfig.ambient_light_enabled === false) {
-                return;
-            }
-            
-            document.documentElement.style.setProperty('--ambient-color', colorString);
-            
-            if (cover1) {
-                cover1.style.boxShadow = `
-                    0 0 25px rgba(${currentR}, ${currentG}, ${currentB}, 0.8),
-                    0 0 45px rgba(${currentR}, ${currentG}, ${currentB}, 0.6),
-                    0 0 65px rgba(${currentR}, ${currentG}, ${currentB}, 0.4)
-                `;
-            }
-            if (cover2) {
-                cover2.style.boxShadow = `
-                    0 0 25px rgba(${currentR}, ${currentG}, ${currentB}, 0.8),
-                    0 0 45px rgba(${currentR}, ${currentG}, ${currentB}, 0.6),
-                    0 0 65px rgba(${currentR}, ${currentG}, ${currentB}, 0.4)
-                `;
-            }
-            
-            if (progress < 1) {
-                colorTransitionAnimation = requestAnimationFrame(animate);
-            } else {
-                colorTransitionAnimation = null;
-                currentAmbientColor = colorString;
-                previousAmbientColor = colorString;
-            }
-        }
-        
-        colorTransitionAnimation = requestAnimationFrame(animate);
-    }
-
-    function updateAmbientLight(color, useTransition = true) {
-        if (currentConfig.ambient_light_enabled === false) {
-            return;
-        }
-        
-        const targetRGB = parseColor(color);
-        const targetColor = `rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.85)`;
-        
-        if (useTransition && previousAmbientColor && previousAmbientColor !== targetColor) {
-            transitionAmbientLight(previousAmbientColor, targetColor);
-        } else {
-            currentAmbientColor = targetColor;
-            previousAmbientColor = targetColor;
-            document.documentElement.style.setProperty('--ambient-color', targetColor);
-            
-            if (cover1) {
-                cover1.style.transition = 'box-shadow 0.8s ease';
-                cover1.style.boxShadow = `
-                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
-                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
-                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
-                `;
-            }
-            if (cover2) {
-                cover2.style.transition = 'box-shadow 0.8s ease';
-                cover2.style.boxShadow = `
-                    0 0 25px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.8),
-                    0 0 45px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.6),
-                    0 0 65px rgba(${targetRGB.r}, ${targetRGB.g}, ${targetRGB.b}, 0.4)
-                `;
-            }
-        }
-    }
-
-    function applyAutoColors(colors) {
-        if (!currentConfig.auto_colors_enabled) {
-            return;
-        }
-
-        const coverColor = lightenColor(colors.first);
-        updateAmbientLight(coverColor, false);
-
-        const firstColorRGB = parseColor(colors.first);
-        let firstLuminance = (0.299 * firstColorRGB.r + 0.587 * firstColorRGB.g + 0.114 * firstColorRGB.b);
-        
-        let bgColorToUse = colors.first;
-        if (firstLuminance < 50) {
-            bgColorToUse = colors.second;
-            const secondColorRGB = parseColor(colors.second);
-            firstLuminance = (0.299 * secondColorRGB.r + 0.587 * secondColorRGB.g + 0.114 * secondColorRGB.b);
-        }
-        
-        let bgColorRGB = parseColor(bgColorToUse);
-        if (firstLuminance > 120) {
-            const darkenAmount = Math.min(100, Math.round((firstLuminance - 120) * 0.8));
-            bgColorRGB = parseColor(darkenColor(bgColorToUse, darkenAmount));
-        } else if (firstLuminance > 80) {
-            bgColorRGB = parseColor(darkenColor(bgColorToUse, 40));
-        } else if (firstLuminance > 50) {
-            bgColorRGB = parseColor(darkenColor(bgColorToUse, 20));
-        }
-        
-        const desaturatedBg = desaturateColor(`rgba(${bgColorRGB.r}, ${bgColorRGB.g}, ${bgColorRGB.b}, 1)`, 0.5);
-        document.documentElement.style.setProperty('--bg-color', desaturatedBg);
-
-        let accentColorLight = lightenColor(colors.second);
-        accentColorLight = ensureLightColor(accentColorLight, 180);
-        const accentRGB = parseColor(accentColorLight);
-        
-        document.documentElement.style.setProperty('--text-color', `rgba(${accentRGB.r}, ${accentRGB.g}, ${accentRGB.b}, 1)`);
-        document.documentElement.style.setProperty('--wave-color', accentColorLight);
-        document.documentElement.style.setProperty('--accent-color', accentColorLight);
-        document.documentElement.style.setProperty('--progress-color2', accentColorLight);
-        
-        const artistElement = document.getElementById('artist');
-        if (artistElement) {
-            artistElement.style.color = '';
-        }
-        
-        const progressBgColor = darkenColor(colors.second, 60);
-        document.documentElement.style.setProperty('--progress-color1', progressBgColor);
-        document.documentElement.style.setProperty('--progress-bg', progressBgColor);
     }
 
     function applyConfig(config) {
@@ -950,24 +467,20 @@
                     const activeCover = currentCover && currentCover.src && currentCover.complete && currentCover.naturalWidth > 0 ? currentCover : null;
                     if (activeCover && !activeCover.src.includes('NoCover') && !activeCover.src.includes('/no_cover')) {
                         console.log('Автоматические цвета включены, пересчитываем цвета из текущей обложки');
-                        // Пересчитываем цвета из текущей обложки
-                        getDominantColors(activeCover)
-                            .then(colors => {
-                                console.log('Применяем автоматические цвета из текущей обложки:', colors);
-                                applyAutoColors(colors);
+                        
+                        const currentTitle = title ? title.textContent : null;
+                        const currentArtist = artist ? artist.textContent : null;
+                        
+                        Promise.all([
+                            getDominantColors(activeCover, currentTitle, currentArtist),
+                            getEdgeColors(activeCover, currentTitle, currentArtist)
+                        ])
+                            .then(([colors, edgeColors]) => {
+                                console.log('Применяем автоматические цвета из текущей обложки:', { colors, edgeColors });
+                                applyAutoColors(colors, edgeColors, config);
                             })
                             .catch(error => {
                                 console.error('Не удалось извлечь цвета из обложки:', error);
-                                // Если не удалось извлечь цвет, используем старую функцию для обратной совместимости
-                                getDominantColor(activeCover)
-                                    .then(color => {
-                                        if (currentConfig.auto_colors_enabled) {
-                                            updateAmbientLight(color, false);
-                                        }
-                                    })
-                                    .catch(() => {
-                                        // Оставляем предыдущий цвет подсветки
-                                    });
                             });
                     }
                 }
@@ -989,9 +502,9 @@
 
 
             if (config.wave_enabled) {
-                animateVisualizer();
+                animateVisualizer(visualizer, config);
             } else {
-                stopVisualizer();
+                stopVisualizer(visualizer);
             }
 
             // Управление эффектом стекла
@@ -1004,108 +517,17 @@
             } else {
                 player.classList.remove('glass-effect', 'glass-dark', 'glass-light');
             }
-        }
-    }
 
-    // Создаём 30 полосок визуализатора с хаотичными параметрами анимации
-    function createVisualizer() {
-        visualizer.innerHTML = '';
-        for (let i = 0; i < 30; i++) {
-            const bar = document.createElement('div');
-            bar.className = 'visualizer-bar';
-            
-            // Случайная задержка от 0 до 2 секунд для хаотичности
-            const randomDelay = Math.random() * 2;
-            // Случайная длительность от 0.8 до 2 секунд для разной скорости
-            const randomDuration = 0.8 + Math.random() * 1.2;
-            
-            // Случайные максимальные высоты для каждой точки анимации (0.3 - 1.0)
-            const max1 = 0.3 + Math.random() * 0.7;
-            const max2 = 0.3 + Math.random() * 0.7;
-            const max3 = 0.3 + Math.random() * 0.7;
-            const max4 = 0.3 + Math.random() * 0.7;
-            
-            // Случайная прозрачность для каждой точки
-            const opacity1 = 0.5 + Math.random() * 0.5;
-            const opacity2 = 0.4 + Math.random() * 0.4;
-            const opacity3 = 0.6 + Math.random() * 0.4;
-            const opacity4 = 0.5 + Math.random() * 0.3;
-            
-            bar.style.animationDelay = `${randomDelay.toFixed(2)}s`;
-            bar.style.animationDuration = `${randomDuration.toFixed(2)}s`;
-            bar.style.setProperty('--bar-max-1', max1.toFixed(3));
-            bar.style.setProperty('--bar-max-2', max2.toFixed(3));
-            bar.style.setProperty('--bar-max-3', max3.toFixed(3));
-            bar.style.setProperty('--bar-max-4', max4.toFixed(3));
-            bar.style.setProperty('--bar-opacity-1', opacity1.toFixed(2));
-            bar.style.setProperty('--bar-opacity-2', opacity2.toFixed(2));
-            bar.style.setProperty('--bar-opacity-3', opacity3.toFixed(2));
-            bar.style.setProperty('--bar-opacity-4', opacity4.toFixed(2));
-            
-            visualizer.appendChild(bar);
-        }
-    }
-
-    // Запуск/остановка CSS анимации визуализатора (0% CPU нагрузка!)
-    function animateVisualizer() {
-        // Проверяем настройки первым делом
-        if (currentConfig && currentConfig.wave_enabled === false) {
-            stopVisualizer();
-            return;
-        }
-        
-        // Находим родительский контейнер (visualizer-full-width)
-        const visualizerContainer = visualizer.closest('.visualizer-full-width');
-        
-        // Убираем класс fade-out
-        visualizer.classList.remove('fade-out');
-        if (visualizerContainer) {
-            visualizerContainer.classList.remove('fade-out');
-        }
-        
-        // Показываем визуализатор, если он скрыт
-        const wasHidden = visualizer.style.display === 'none' || (visualizerContainer && visualizerContainer.style.display === 'none');
-        if (wasHidden) {
-            visualizer.style.display = '';
-            if (visualizerContainer) {
-                visualizerContainer.style.display = '';
+            // Управление эффектом на обложке
+            const coverEffectEnabled = config.cover_effect_enabled !== false; // По умолчанию включен
+            const coverEffect = document.querySelector('.cover-effect');
+            if (coverEffect) {
+                coverEffect.style.display = coverEffectEnabled ? 'block' : 'none';
             }
-            // Используем requestAnimationFrame для гарантии применения display
-            requestAnimationFrame(() => {
-            visualizer.classList.add('enabled');
-            });
-        } else {
-            // Если уже видим, сразу добавляем класс
-            visualizer.classList.add('enabled');
         }
     }
 
-    // Остановка анимации с плавным исчезновением
-    function stopVisualizer() {
-        // Убираем класс enabled, чтобы остановить основную анимацию
-        visualizer.classList.remove('enabled');
-        
-        // Находим родительский контейнер (visualizer-full-width)
-        const visualizerContainer = visualizer.closest('.visualizer-full-width');
-        
-        // Если визуализатор видим, добавляем класс fade-out для плавного исчезновения
-        if (visualizer.style.display !== 'none') {
-            visualizer.classList.add('fade-out');
-            if (visualizerContainer) {
-                visualizerContainer.classList.add('fade-out');
-            }
-            
-            // После завершения анимации скрываем визуализатор полностью
-            setTimeout(() => {
-                visualizer.style.display = 'none';
-                visualizer.classList.remove('fade-out');
-                if (visualizerContainer) {
-                    visualizerContainer.style.display = 'none';
-                    visualizerContainer.classList.remove('fade-out');
-                }
-            }, 400); // Длительность анимации исчезновения
-        }
-    }
+
 
     function setStatus(text) {
         status.textContent = text;
@@ -1140,8 +562,8 @@
                 const defaultCoverSrc = '/songinfo/NoCover.png';
                 if (currentCover) currentCover.src = defaultCoverSrc;
                 if (nextCover && nextCover !== currentCover) nextCover.src = defaultCoverSrc;
-                stopVisualizer();
-                stopProgressUpdate();
+                stopVisualizer(visualizer);
+                stopProgressUpdate(progressInterval);
 
                 currentPosition = 0;
                 totalDuration = 0;
@@ -1171,9 +593,10 @@
         if (data.is_playing !== undefined) {
             isPlaying = data.is_playing;
             if (isPlaying) {
-                startProgressUpdate();
+                const state = { isPlaying, currentPosition, totalDuration };
+                progressInterval = startProgressUpdate(state, updateProgress);
             } else {
-                stopProgressUpdate();
+                stopProgressUpdate(progressInterval);
             }
         }
 
@@ -1183,6 +606,10 @@
             if (currentAmbientColor) {
                 previousAmbientColor = currentAmbientColor;
             }
+            
+            // Защита от race condition: создаем уникальный ID для текущей загрузки
+            const loadId = Date.now() + Math.random();
+            activeCoverLoadId = loadId;
             
             const loadingCover = nextCover;
             const isFirstLoad = !currentCover.src || currentCover.src.includes('data:image/svg');
@@ -1194,24 +621,41 @@
             loadingCover.onerror = null;
             
             loadingCover.onload = function() {
-                getDominantColors(loadingCover)
-                    .then(colors => {
-                        if (currentConfig.auto_colors_enabled) {
-                            applyAutoColors(colors);
-                        } else {
-                            updateAmbientLight(colors.first, !isFirstLoad);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Не удалось извлечь цвета:', error);
-                        getDominantColor(loadingCover)
-                            .then(color => {
-                                if (!currentConfig.auto_colors_enabled) {
-                                    updateAmbientLight(color, !isFirstLoad);
+                if (colorExtractionTimeout) clearTimeout(colorExtractionTimeout);
+                
+                colorExtractionTimeout = setTimeout(() => {
+                    colorExtractionTimeout = null;
+                    if (activeCoverLoadId !== loadId) return;
+                    
+                    const extractColors = () => {
+                        const trackTitle = title ? title.textContent : null;
+                        const trackArtist = artist ? artist.textContent : null;
+                        
+                        Promise.all([
+                            getDominantColors(loadingCover, trackTitle, trackArtist),
+                            getEdgeColors(loadingCover, trackTitle, trackArtist)
+                        ])
+                            .then(([colors, edgeColors]) => {
+                                if (activeCoverLoadId !== loadId) return;
+                                console.log('Применяем цвета из изображения:', { colors, edgeColors });
+                                
+                                if (currentConfig.auto_colors_enabled) {
+                                    applyAutoColors(colors, edgeColors, currentConfig);
+                                } else {
+                                    updateAmbientLight(edgeColors, document.getElementById('ambientLight'), currentConfig, false);
                                 }
                             })
-                            .catch(() => {});
-                    });
+                            .catch(error => {
+                                console.error('Не удалось извлечь цвета:', error);
+                            });
+                    };
+                    
+                    if (window.requestIdleCallback) {
+                        requestIdleCallback(extractColors, { timeout: 100 });
+                    } else {
+                        setTimeout(extractColors, 0);
+                    }
+                }, 50);
                 
                 if (isFirstLoad) {
                     loadingCover.classList.remove('inactive');
@@ -1246,7 +690,7 @@
 
 
         if (currentConfig.wave_enabled !== false) {
-            animateVisualizer();
+            animateVisualizer(visualizer, currentConfig);
         }
     }
 
@@ -1303,15 +747,15 @@
 
         ws.onclose = () => {
             setStatus("Соединение потеряно");
-            stopVisualizer();
-            stopProgressUpdate();
+            stopVisualizer(visualizer);
+            stopProgressUpdate(progressInterval);
             reconnect();
         };
 
         ws.onerror = (err) => {
             console.error("WebSocket error:", err);
-            stopVisualizer();
-            stopProgressUpdate();
+            stopVisualizer(visualizer);
+            stopProgressUpdate(progressInterval);
             reconnect();
         };
     }
@@ -1322,7 +766,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        createVisualizer();
+        createVisualizer(visualizer, 30);
         connect();
 
 
@@ -1345,14 +789,15 @@
 
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-            stopVisualizer();
-            stopProgressUpdate();
+            stopVisualizer(visualizer);
+            stopProgressUpdate(progressInterval);
         } else {
             if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
-                animateVisualizer();
+                animateVisualizer(visualizer, currentConfig);
             }
             if (isPlaying) {
-                startProgressUpdate();
+                const state = { isPlaying, currentPosition, totalDuration };
+                progressInterval = startProgressUpdate(state, updateProgress);
             }
         }
     });

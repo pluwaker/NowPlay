@@ -4,7 +4,7 @@ import asyncio
 import os
 import io
 from PIL import Image
-from config_manager import config_manager
+from src.config.config_manager import config_manager
 import urllib.parse
 import json
 import re

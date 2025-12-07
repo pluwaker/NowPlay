@@ -3,7 +3,6 @@ import asyncio
 from aiohttp import web
 import os
 import socket
-import json
 from pathlib import Path
 import sys
 from now_server.cover_fetcher import cover_fetcher

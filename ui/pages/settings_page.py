@@ -1,7 +1,11 @@
 # ui/pages/settings_page.py
 import customtkinter as ctk
+<<<<<<< Updated upstream
 from tkinter import messagebox
 import tkinter
+=======
+from tkinter import colorchooser, messagebox
+>>>>>>> Stashed changes
 import sys
 import os
 import urllib.request

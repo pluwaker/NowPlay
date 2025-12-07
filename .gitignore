@@ -43,7 +43,5 @@ reports/*.xml
 # Temporary files
 *.tmp
 *.temp
-/.kiro
-/docs
 MEDIAMONITOR_FIX.md
 ЗАПУСК_БЕЗ_КОНСОЛИ.md

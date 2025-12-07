@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module version="4">
   <component name="NewModuleRootManager">
+<<<<<<< Updated upstream
+=======
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/.venv1" />
+    </content>
+    <content url="file://H:/проекты/nowplay/.venv1" />
+>>>>>>> Stashed changes
     <orderEntry type="jdk" jdkName="Python 3.12 (nowplay)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>

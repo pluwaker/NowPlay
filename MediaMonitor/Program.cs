@@ -15,9 +15,29 @@ namespace NowMediaMonitor
             // Parse command-line arguments for diagnostic mode
             bool diagnosticMode = args.Contains("--diagnostic") || args.Contains("-d");
             
+            // Parse port argument
+            int port = 58080; // Default port
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "--port" || args[i] == "-p")
+                {
+                    if (int.TryParse(args[i + 1], out int parsedPort))
+                    {
+                        port = parsedPort;
+                        Console.WriteLine($"🔌 Using port: {port}");
+                    }
+                }
+            }
+            
+            // Initialize diagnostic logger
+            DiagnosticLogger.Initialize(diagnosticMode);
+            
             if (diagnosticMode)
             {
                 Console.WriteLine("🔍 Diagnostic mode enabled");
+                Console.WriteLine("📝 Verbose logging active - all events will be logged");
+                Console.WriteLine("📁 Log file will be created in the 'logs' directory");
+                Console.WriteLine();
             }
 
             // Set up graceful shutdown handler for Ctrl+C
@@ -27,7 +47,7 @@ namespace NowMediaMonitor
             try
             {
                 // Wrap MediaMonitor in using statement for proper disposal
-                using (monitor = new MediaMonitor())
+                using (monitor = new MediaMonitor(port))
                 {
                     // Start monitoring with cancellation support
                     var monitorTask = monitor.Start();
@@ -48,6 +68,8 @@ namespace NowMediaMonitor
             }
             finally
             {
+                // Shutdown diagnostic logger
+                DiagnosticLogger.Shutdown();
                 shutdownCts?.Dispose();
             }
         }

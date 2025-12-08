@@ -16,7 +16,7 @@ sys.path.insert(0, str(project_root))
 from now_server.now import (run_server)
 from ui.mediamonitor_manager import MediaMonitorManager
 
-def find_free_port(start_port=8080, max_port=9000):
+def find_free_port(start_port=58080, max_port=59000):
     for port in range(start_port, max_port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
@@ -24,7 +24,7 @@ def find_free_port(start_port=8080, max_port=9000):
                 return port
             except OSError:
                 continue
-    raise OSError("Не удалось найти свободный порт в диапазоне 8080–9000")
+    raise OSError("Не удалось найти свободный порт в диапазоне 58080–59000")
 
 
 # Функция больше не нужна - сервер запускается напрямую в потоке
@@ -204,8 +204,8 @@ class NowPlayApp(ctk.CTk):
             self.obs_link.set(self.obs_url)
             print(f"✅ Сервер запущен на {self.obs_url}")
             
-            # Start MediaMonitor after server is running
-            if not self.mediamonitor_manager.start():
+            # Start MediaMonitor after server is running with correct port
+            if not self.mediamonitor_manager.start(port=self.port):
                 messagebox.showwarning(
                     "Предупреждение", 
                     "Не удалось запустить MediaMonitor. Сервер работает, но данные о медиа не будут обновляться."

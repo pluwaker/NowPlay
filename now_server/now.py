@@ -39,9 +39,7 @@ current_data = {
     "source_id": ""     # идентификатор источника медиа
 }
 
-# Добавляем переменные для оптимизации
-last_update_time = 0
-UPDATE_COOLDOWN = 0.1  # Минимальный интервал между обновлениями (100мс)
+# Переменные для управления обложками
 active_cover_fetch_task = None  # Отслеживание активной задачи загрузки обложки
 last_cover_fetch_key = None  # Ключ последней загрузки обложки
 
@@ -88,14 +86,7 @@ async def send_to_listeners(msg):
             current_data['listeners'].discard(ws)
 
 async def notify_cover_replaced(artist, title):
-    """Уведомляет о замене обложки с троттлингом"""
-    global last_update_time
-    current_time = asyncio.get_event_loop().time()
-    
-    # Троттлинг чтобы избежать частых обновлений
-    if current_time - last_update_time < UPDATE_COOLDOWN:
-        return
-    
+    """Уведомляет о замене обложки"""
     # Проверяем, что трек не изменился - если изменился, не обновляем
     # (это означает что замена обложки произошла для старого трека)
     if current_data["artist"] != artist or current_data["title"] != title:
@@ -118,7 +109,6 @@ async def notify_cover_replaced(artist, title):
         }
     }
     await send_to_listeners(msg)
-    last_update_time = current_time
 
 # 💥 назначаем callback для cover_fetcher
 cover_fetcher.on_cover_replaced = notify_cover_replaced
@@ -210,7 +200,6 @@ async def update_config(request):
 # ЭНДПОИНТ ДЛЯ ПРИЕМА ДАННЫХ ОТ C# MediaMonitor
 @routes.post('/update_from_cs')
 async def update_from_cs(request):
-    global last_update_time
     try:
         data = await request.json()
         
@@ -238,27 +227,23 @@ async def update_from_cs(request):
             global active_cover_fetch_task
             active_cover_fetch_task = asyncio.create_task(fetch_cover_for_track(artist, title))
         else:
-            # Если трек не сменился, отправляем обновление позиции/статуса
-            current_time = asyncio.get_event_loop().time()
-            should_send = current_time - last_update_time >= UPDATE_COOLDOWN
-            
-            if should_send:
-                msg = {
-                    "type": "update",
-                    "data": {
-                        "artist": current_data["artist"],
-                        "title": current_data["title"],
-                        "position": current_data["position"],
-                        "duration": current_data["duration"],
-                        "is_playing": current_data["is_playing"],
-                        "cover_url": f"/cover?v={current_data['cover_version']}",
-                        "config": current_config,
-                        "status": data.get("status", "active"),
-                        "source_id": current_data["source_id"]
-                    }
+            # Если трек не сменился, отправляем обновление позиции/статуса НЕМЕДЛЕННО
+            # Троттлинг отключен для быстрой реакции на перемотку
+            msg = {
+                "type": "update",
+                "data": {
+                    "artist": current_data["artist"],
+                    "title": current_data["title"],
+                    "position": current_data["position"],
+                    "duration": current_data["duration"],
+                    "is_playing": current_data["is_playing"],
+                    "cover_url": f"/cover?v={current_data['cover_version']}",
+                    "config": current_config,
+                    "status": data.get("status", "active"),
+                    "source_id": current_data["source_id"]
                 }
-                await send_to_listeners(msg)
-                last_update_time = current_time
+            }
+            await send_to_listeners(msg)
         
         return web.json_response({"status": "success"})
     except Exception as e:

@@ -48,9 +48,13 @@ class MediaMonitorManager:
         print("❌ MediaMonitor.exe not found in any expected location")
         return None
     
-    def start(self) -> bool:
+    def start(self, port: int = 58080, show_console: bool = False) -> bool:
         """
-        Starts MediaMonitor process without terminal window
+        Starts MediaMonitor process
+        
+        Args:
+            port: Port number where Python server is running
+            show_console: If True, shows console window with output (for debugging)
         
         Returns:
             True if process started successfully, False otherwise
@@ -66,30 +70,41 @@ class MediaMonitorManager:
                 return False
         
         try:
-            # Windows-specific flags for hidden process
-            if sys.platform == "win32":
-                # CREATE_NO_WINDOW flag (0x08000000)
-                CREATE_NO_WINDOW = 0x08000000
-                
-                # Start process without terminal window
+            # Build command with port argument
+            cmd = [str(self.executable_path), "--port", str(port)]
+            
+            if show_console:
+                # Start with visible console for debugging
                 self.process = subprocess.Popen(
-                    [str(self.executable_path)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    stdin=subprocess.PIPE,
-                    creationflags=CREATE_NO_WINDOW
+                    cmd,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
                 )
             else:
-                # For non-Windows systems (fallback)
-                self.process = subprocess.Popen(
-                    [str(self.executable_path)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    stdin=subprocess.PIPE
-                )
+                # Windows-specific flags for hidden process
+                if sys.platform == "win32":
+                    # CREATE_NO_WINDOW flag (0x08000000)
+                    CREATE_NO_WINDOW = 0x08000000
+                    
+                    # Start process without terminal window
+                    # ВАЖНО: Используем subprocess.DEVNULL вместо PIPE чтобы избежать блокировки
+                    self.process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        creationflags=CREATE_NO_WINDOW
+                    )
+                else:
+                    # For non-Windows systems (fallback)
+                    self.process = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL
+                    )
             
             self.start_time = datetime.now()
-            print(f"✅ MediaMonitor started (PID: {self.process.pid})")
+            print(f"✅ MediaMonitor started (PID: {self.process.pid}, Port: {port})")
             return True
             
         except FileNotFoundError:
@@ -101,6 +116,36 @@ class MediaMonitorManager:
         except Exception as e:
             print(f"❌ Failed to start MediaMonitor: {e}")
             return False
+    
+    def get_output(self, lines: int = 50) -> str:
+        """
+        Gets recent output from MediaMonitor process
+        
+        Args:
+            lines: Number of lines to retrieve
+        
+        Returns:
+            Recent output as string, or empty string if not available
+        """
+        if not self.is_running() or not self.process:
+            return ""
+        
+        try:
+            # Try to read available output without blocking
+            import select
+            if hasattr(select, 'select'):
+                # Unix-like systems
+                ready, _, _ = select.select([self.process.stdout], [], [], 0.1)
+                if ready:
+                    output = self.process.stdout.read(4096).decode('utf-8', errors='ignore')
+                    return output
+            else:
+                # Windows - just try to read
+                # Note: This might block on Windows, so we use a small timeout
+                return ""
+        except Exception as e:
+            print(f"⚠️ Could not read MediaMonitor output: {e}")
+            return ""
     
     def stop(self, timeout: float = 2.0) -> bool:
         """

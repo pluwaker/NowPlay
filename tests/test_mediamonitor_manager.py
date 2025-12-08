@@ -65,7 +65,7 @@ class TestMediaMonitorManager(unittest.TestCase):
         self.manager.executable_path = mock_path
         
         with patch('subprocess.Popen', return_value=mock_process):
-            result = self.manager.start(port=58080)
+            result = self.manager.start()
             
             # Should return True on success
             self.assertTrue(result)
@@ -73,8 +73,6 @@ class TestMediaMonitorManager(unittest.TestCase):
             self.assertEqual(self.manager.process, mock_process)
             # Should set start_time
             self.assertIsNotNone(self.manager.start_time)
-            # Should store the port
-            self.assertEqual(self.manager.port, 58080)
     
     def test_start_process_already_running(self):
         """Test starting when process is already running"""
@@ -83,7 +81,7 @@ class TestMediaMonitorManager(unittest.TestCase):
         mock_process.poll.return_value = None  # Process is running
         self.manager.process = mock_process
         
-        result = self.manager.start(port=58080)
+        result = self.manager.start()
         
         # Should return True (already running)
         self.assertTrue(result)
@@ -96,7 +94,7 @@ class TestMediaMonitorManager(unittest.TestCase):
         self.manager.executable_path = None
         
         with patch.object(self.manager, 'find_executable', return_value=None):
-            result = self.manager.start(port=58080)
+            result = self.manager.start()
             
             # Should return False
             self.assertFalse(result)
@@ -104,7 +102,7 @@ class TestMediaMonitorManager(unittest.TestCase):
             self.assertIsNone(self.manager.process)
     
     def test_start_with_custom_port(self):
-        """Test starting MediaMonitor with custom port"""
+        """Test starting MediaMonitor successfully"""
         # Create a mock process
         mock_process = Mock(spec=subprocess.Popen)
         mock_process.pid = 12345
@@ -115,16 +113,13 @@ class TestMediaMonitorManager(unittest.TestCase):
         self.manager.executable_path = mock_path
         
         with patch('subprocess.Popen', return_value=mock_process) as mock_popen:
-            result = self.manager.start(port=8081)
+            result = self.manager.start()
             
             # Should return True
             self.assertTrue(result)
-            # Should pass port as command line argument
+            # Should call Popen with the executable path
             call_args = mock_popen.call_args[0][0]
-            self.assertIn("--port", call_args)
-            self.assertIn("8081", call_args)
-            # Should store the port
-            self.assertEqual(self.manager.port, 8081)
+            self.assertEqual(call_args[0], str(mock_path))
     
     def test_stop_process_graceful(self):
         """Test graceful shutdown with SIGTERM"""

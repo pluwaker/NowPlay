@@ -5,7 +5,7 @@ import requests
 import json
 import time
 
-SERVER_URL = "http://localhost:80"
+SERVER_URL = "http://localhost:58080"
 
 def test_update_from_cs():
     """Тестирует endpoint /update_from_cs"""

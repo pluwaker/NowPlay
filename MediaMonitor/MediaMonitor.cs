@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -17,44 +17,36 @@ namespace NowMediaMonitor
     {
         public CurrentMediaState State = new();
 
-        private GlobalSystemMediaTransportControlsSessionManager? sessionManager;
-        private GlobalSystemMediaTransportControlsSession? currentSession;
+        internal GlobalSystemMediaTransportControlsSessionManager? sessionManager;
+        internal GlobalSystemMediaTransportControlsSession? currentSession;
 
-        private readonly HttpClient httpClient;
-        private readonly string pythonServerUrl = "http://localhost:8080";
+        private readonly string pythonServerUrl;
         
         // Для отслеживания изменений
         private double lastPosition = 0;
         private bool lastIsPlaying = false;
         private string selectedSource = "";
         
-        // Для debouncing обновлений с 2-секундным батчингом
-        private System.Threading.Timer? debounceTimer;
-        private bool pendingUpdate = false;
-        private readonly SemaphoreSlim updateLock = new SemaphoreSlim(1, 1);
-        
-        // HTTP семафор для ограничения параллельных запросов
-        private readonly SemaphoreSlim httpSemaphore = new SemaphoreSlim(1, 1);
-        private DateTime lastHttpUpdate = DateTime.MinValue;
-        private const double UPDATE_COOLDOWN_SECONDS = 2.0;
-        
         // Кеширование источников
         private DateTime lastSourceEnumeration = DateTime.MinValue;
         private const int SOURCE_CACHE_SECONDS = 5;
         private List<string> lastSentSources = new List<string>();
         
-        // ConfigPoller для отслеживания изменений конфигурации
-        private System.Threading.Timer? configPollerTimer;
-        private string lastSelectedSource = "";
-        private const int CONFIG_POLL_INTERVAL_MS = 2000;
+        // New component-based architecture
+        private HealthMonitor? healthMonitor;
+        private RecoveryManager? recoveryManager;
+        private EventSubscriptionManager? eventSubscriptionManager;
+        private UpdateQueue? updateQueue;
+        private HttpClientPool? httpClientPool;
+        private IsolatedConfigPoller? configPoller;
         
-        public MediaMonitor()
+        // Recovery state
+        private bool isRecovering = false;
+        
+        public MediaMonitor(int port = 58080)
         {
-            // Настраиваем HttpClient с таймаутом
-            httpClient = new HttpClient
-            {
-                Timeout = TimeSpan.FromSeconds(5)
-            };
+            pythonServerUrl = $"http://localhost:{port}";
+            // Components will be initialized in Start()
         }
 
         public async Task Start()
@@ -74,6 +66,19 @@ namespace NowMediaMonitor
             Console.WriteLine("✅ MediaMonitor запущен!");
             Console.WriteLine($"🔗 Подключение к серверу: {pythonServerUrl}");
             
+            // Initialize new components
+            httpClientPool = new HttpClientPool(pythonServerUrl);
+            updateQueue = new UpdateQueue();
+            eventSubscriptionManager = new EventSubscriptionManager();
+            recoveryManager = new RecoveryManager(this);
+            healthMonitor = new HealthMonitor();
+            
+            // Wire up event handlers
+            healthMonitor.RecoveryNeeded += OnRecoveryNeeded;
+            eventSubscriptionManager.MediaUpdated += OnMediaUpdated;
+            updateQueue.UpdateReady += OnUpdateReady;
+            updateQueue.RecoveryNeeded += OnRecoveryNeeded;
+            
             // Загружаем выбранный источник из конфига
             await LoadSelectedSource();
             
@@ -83,13 +88,25 @@ namespace NowMediaMonitor
             // Отправляем начальный список источников
             await SendAvailableSources(force: true);
             
-            // Инициализируем ConfigPoller для отслеживания изменений конфигурации
-            InitializeConfigPoller();
+            // Initialize ConfigPoller with isolated HTTP client
+            configPoller = new IsolatedConfigPoller(pythonServerUrl);
+            configPoller.SourceChanged += OnConfigSourceChanged;
+            configPoller.Start();
             
-            // Создаем debounce timer
-            debounceTimer = new System.Threading.Timer(OnDebounceTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+            // Start health monitoring
+            try
+            {
+                Console.WriteLine("🔄 Запуск HealthMonitor...");
+                healthMonitor.Start();
+                Console.WriteLine("✅ HealthMonitor запущен успешно");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ ОШИБКА запуска HealthMonitor: {ex.Message}");
+                Console.WriteLine($"   Stack trace: {ex.StackTrace}");
+            }
             
-            Console.WriteLine("🎵 Мониторинг медиа активен (event-driven режим)");
+            Console.WriteLine("🎵 Мониторинг медиа активен (event-driven режим с компонентной архитектурой)");
             
             // Держим приложение запущенным
             await Task.Delay(Timeout.Infinite);
@@ -116,67 +133,123 @@ namespace NowMediaMonitor
             }
         }
         
-        private void InitializeConfigPoller()
-        {
-            configPollerTimer = new System.Threading.Timer(
-                OnConfigPollTimerElapsed,
-                null,
-                CONFIG_POLL_INTERVAL_MS,
-                CONFIG_POLL_INTERVAL_MS
-            );
-            Console.WriteLine("✅ ConfigPoller инициализирован");
-        }
-        
-        private async Task CheckConfigChanges()
-        {
-            try
-            {
-                using var response = await httpClient.GetAsync($"{pythonServerUrl}/get_config").ConfigureAwait(false);
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    var config = JsonSerializer.Deserialize<JsonElement>(json);
-                    
-                    if (config.TryGetProperty("selected_media_source", out var source))
-                    {
-                        string newSource = source.GetString() ?? "auto";
-                        
-                        // Проверяем, изменился ли источник
-                        if (newSource != lastSelectedSource)
-                        {
-                            Console.WriteLine($"🔄 Источник изменен: {lastSelectedSource} → {newSource}");
-                            lastSelectedSource = newSource;
-                            selectedSource = newSource;
-                            
-                            // Переключаем сессию
-                            await UpdateCurrentSession();
-                        }
-                    }
-                }
-            }
-            catch (HttpRequestException)
-            {
-                // Сервер недоступен - игнорируем
-            }
-        }
-        
-        private void OnConfigPollTimerElapsed(object? state)
+        private void OnConfigSourceChanged(object? sender, SourceChangedEventArgs e)
         {
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await CheckConfigChanges();
+                    Console.WriteLine($"🔄 Источник изменен: {selectedSource} → {e.NewSource}");
+                    selectedSource = e.NewSource;
+                    
+                    // Переключаем сессию
+                    await UpdateCurrentSession();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"⚠️ Ошибка проверки конфигурации: {ex.Message}");
+                    Console.WriteLine($"⚠️ Ошибка при смене источника: {ex.Message}");
                 }
             });
         }
         
-        private async void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
+        private void OnRecoveryNeeded(object? sender, EventArgs e)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    Console.WriteLine("🔄 Запуск процедуры восстановления...");
+                    bool success = await recoveryManager!.AttemptRecovery();
+                    
+                    if (success)
+                    {
+                        Console.WriteLine("✅ Восстановление успешно");
+                        healthMonitor?.RecordUpdate();
+                    }
+                    else
+                    {
+                        Console.WriteLine("❌ Восстановление не удалось");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Ошибка восстановления: {ex.Message}");
+                }
+            });
+        }
+        
+        private void OnMediaUpdated(object? sender, MediaUpdateEventArgs e)
+        {
+            try
+            {
+                Console.WriteLine($"📥 MediaMonitor.OnMediaUpdated получил событие: {e.Artist} - {e.Title}");
+                
+                // Update state from event
+                State.Artist = e.Artist;
+                State.Title = e.Title;
+                State.Position = e.Position;
+                State.Duration = e.Duration;
+                State.IsPlaying = e.IsPlaying;
+                State.SourceId = e.SourceId;
+                
+                Console.WriteLine($"   State обновлен: Position={State.Position:F1}s, IsPlaying={State.IsPlaying}");
+                
+                // Record update for health monitoring
+                healthMonitor?.RecordUpdate();
+                
+                // Queue update for sending to Python server
+                Console.WriteLine($"   Вызываем updateQueue.QueueUpdate...");
+                updateQueue?.QueueUpdate(State);
+                Console.WriteLine($"   updateQueue.QueueUpdate завершен");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"⚠️ Ошибка обработки обновления медиа: {ex.Message}");
+            }
+        }
+        
+        private void OnUpdateReady(object? sender, CurrentMediaState state)
+        {
+            Console.WriteLine($"📤 MediaMonitor.OnUpdateReady вызван для: {state.Artist} - {state.Title}");
+            
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var data = new
+                    {
+                        artist = state.Artist,
+                        title = state.Title,
+                        position = state.Position,
+                        duration = state.Duration,
+                        is_playing = state.IsPlaying,
+                        cover_version = state.CoverVersion,
+                        status = state.Status,
+                        source_id = state.SourceId
+                    };
+                    
+                    Console.WriteLine($"   Отправляем данные на {pythonServerUrl}/update_from_cs");
+                    Console.WriteLine($"   Position: {state.Position:F1}s, IsPlaying: {state.IsPlaying}");
+                    
+                    bool success = await httpClientPool!.SendUpdate(data, "/update_from_cs");
+                    
+                    if (success)
+                    {
+                        Console.WriteLine($"✅ Update sent to Python server");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"⚠️ Failed to send update to Python server");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Error sending update: {ex.Message}");
+                }
+            });
+        }
+        
+        internal async void OnSessionsChanged(GlobalSystemMediaTransportControlsSessionManager sender, SessionsChangedEventArgs args)
         {
             try
             {
@@ -192,24 +265,12 @@ namespace NowMediaMonitor
             }
         }
         
-        private async Task UpdateCurrentSession()
+        internal async Task UpdateCurrentSession(bool skipInitialUpdate = false)
         {
-            Console.WriteLine($"🔄 UpdateCurrentSession вызван (selectedSource: {selectedSource})");
+            Console.WriteLine($"🔄 UpdateCurrentSession вызван (selectedSource: {selectedSource}, skipInitialUpdate: {skipInitialUpdate})");
             
-            // Отписываемся от старой сессии (WinRT объекты не требуют Dispose)
-            var oldSession = currentSession;
-            if (oldSession != null)
-            {
-                try
-                {
-                    var oldAppId = oldSession.SourceAppUserModelId;
-                    Console.WriteLine($"📤 Отписываемся от старой сессии: {oldAppId}");
-                    oldSession.MediaPropertiesChanged -= OnMediaPropertiesChanged;
-                    oldSession.PlaybackInfoChanged -= OnPlaybackInfoChanged;
-                    oldSession.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
-                }
-                catch { }
-            }
+            // Unsubscribe from old session using EventSubscriptionManager
+            eventSubscriptionManager?.Unsubscribe();
             
             // Получаем новую сессию
             currentSession = await GetSessionBySource(sessionManager!);
@@ -221,19 +282,24 @@ namespace NowMediaMonitor
                 return;
             }
             
-            // Подписываемся на события новой сессии
+            // Subscribe to new session using EventSubscriptionManager
             try
             {
                 var newAppId = currentSession.SourceAppUserModelId;
                 Console.WriteLine($"📥 Подписываемся на новую сессию: {newAppId}");
                 
-                currentSession.MediaPropertiesChanged += OnMediaPropertiesChanged;
-                currentSession.PlaybackInfoChanged += OnPlaybackInfoChanged;
-                currentSession.TimelinePropertiesChanged += OnTimelinePropertiesChanged;
+                await eventSubscriptionManager!.Subscribe(currentSession);
                 
-                // Получаем начальное состояние
-                Console.WriteLine($"📊 Получаем начальное состояние новой сессии");
-                await UpdateMediaInfo();
+                // Получаем начальное состояние только если не пропускаем
+                if (!skipInitialUpdate)
+                {
+                    Console.WriteLine($"📊 Получаем начальное состояние новой сессии");
+                    await UpdateMediaInfo();
+                }
+                else
+                {
+                    Console.WriteLine($"⏭️ Пропускаем начальное обновление (ждем естественных событий)");
+                }
             }
             catch (Exception ex)
             {
@@ -241,66 +307,7 @@ namespace NowMediaMonitor
             }
         }
         
-        private void OnMediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
-        {
-            try
-            {
-                _ = UpdateMediaInfo();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ Ошибка обновления медиа: {ex.Message}");
-            }
-        }
-        
-        private void OnPlaybackInfoChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
-        {
-            try
-            {
-                var playback = sender.GetPlaybackInfo();
-                bool isPlaying = playback.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-                
-                if (State.IsPlaying != isPlaying)
-                {
-                    State.IsPlaying = isPlaying;
-                    TriggerDebouncedUpdate();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ Ошибка обновления playback: {ex.Message}");
-            }
-        }
-        
-        private void OnTimelinePropertiesChanged(GlobalSystemMediaTransportControlsSession sender, TimelinePropertiesChangedEventArgs args)
-        {
-            try
-            {
-                var timeline = sender.GetTimelineProperties();
-                if (timeline != null)
-                {
-                    double position = timeline.Position.TotalSeconds;
-                    double duration = timeline.EndTime.TotalSeconds;
-                    
-                    bool positionJumped = Math.Abs(position - lastPosition) > 3;
-                    
-                    State.Position = position;
-                    State.Duration = duration;
-                    lastPosition = position;
-                    
-                    if (positionJumped || duration != State.Duration)
-                    {
-                        TriggerDebouncedUpdate();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"⚠️ Ошибка обновления timeline: {ex.Message}");
-            }
-        }
-        
-        private async Task UpdateMediaInfo()
+        public async Task UpdateMediaInfo()
         {
             if (currentSession == null) return;
             
@@ -324,27 +331,24 @@ namespace NowMediaMonitor
                 if (trackChanged)
                 {
                     Console.WriteLine($"🎵 {artist} — {title}");
-                    
-                    State.Artist = artist;
-                    State.Title = title;
-                    State.Position = position;
-                    State.Duration = duration;
-                    State.IsPlaying = isPlaying;
-                    State.SourceId = sourceId;
-                    
-                    lastPosition = position;
-                    lastIsPlaying = isPlaying;
-                    
-                    TriggerDebouncedUpdate();
                 }
-                else
-                {
-                    State.Position = position;
-                    State.Duration = duration;
-                    State.IsPlaying = isPlaying;
-                    State.SourceId = sourceId;
-                    lastPosition = position;
-                }
+                
+                // Update state
+                State.Artist = artist;
+                State.Title = title;
+                State.Position = position;
+                State.Duration = duration;
+                State.IsPlaying = isPlaying;
+                State.SourceId = sourceId;
+                
+                lastPosition = position;
+                lastIsPlaying = isPlaying;
+                
+                // Record update for health monitoring
+                healthMonitor?.RecordUpdate();
+                
+                // Queue update for sending to Python server
+                updateQueue?.QueueUpdate(State);
             }
             catch (Exception ex)
             {
@@ -352,38 +356,13 @@ namespace NowMediaMonitor
             }
         }
         
-        private void TriggerDebouncedUpdate()
-        {
-            pendingUpdate = true;
-            // Увеличиваем debounce до 500мс для снижения частоты HTTP-запросов
-            debounceTimer?.Change(500, Timeout.Infinite);
-        }
-        
-        private void OnDebounceTimerElapsed(object? state)
-        {
-            if (!pendingUpdate) return;
-            
-            _ = Task.Run(async () =>
-            {
-                await updateLock.WaitAsync();
-                try
-                {
-                    pendingUpdate = false;
-                    await SendToPythonServer();
-                }
-                finally
-                {
-                    updateLock.Release();
-                }
-            });
-        }
-        
         private async Task LoadSelectedSource()
         {
-            await httpSemaphore.WaitAsync().ConfigureAwait(false);
             try
             {
-                using var response = await httpClient.GetAsync($"{pythonServerUrl}/get_config").ConfigureAwait(false);
+                // Use HttpClientPool for initial config load
+                using var tempClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                using var response = await tempClient.GetAsync($"{pythonServerUrl}/get_config").ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -392,7 +371,6 @@ namespace NowMediaMonitor
                     if (config.TryGetProperty("selected_media_source", out var source))
                     {
                         selectedSource = source.GetString() ?? "";
-                        lastSelectedSource = selectedSource; // Синхронизируем оба поля
                         if (!string.IsNullOrEmpty(selectedSource) && selectedSource != "auto")
                         {
                             Console.WriteLine($"📻 Выбран источник: {selectedSource}");
@@ -403,10 +381,6 @@ namespace NowMediaMonitor
             catch
             {
                 // Игнорируем ошибки загрузки конфига
-            }
-            finally
-            {
-                httpSemaphore.Release();
             }
         }
         
@@ -469,21 +443,14 @@ namespace NowMediaMonitor
                     // Обновляем время последнего перечисления
                     lastSourceEnumeration = DateTime.Now;
                     
-                    await httpSemaphore.WaitAsync().ConfigureAwait(false);
-                    try
+                    // Use HttpClientPool for sending sources
+                    var data = new { sources };
+                    bool success = await httpClientPool!.SendUpdate(data, "/update_sources");
+                    
+                    if (success)
                     {
-                        var data = new { sources };
-                        var json = JsonSerializer.Serialize(data);
-                        using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                        
-                        using var response = await httpClient.PostAsync($"{pythonServerUrl}/update_sources", content).ConfigureAwait(false);
-                        
                         lastSentSources = currentSourceIds;
                         Console.WriteLine($"📻 Отправлено источников: {sources.Count}");
-                    }
-                    finally
-                    {
-                        httpSemaphore.Release();
                     }
                 }
             }
@@ -538,54 +505,8 @@ namespace NowMediaMonitor
                 State.Duration = 0;
                 State.IsPlaying = false;
                 
-                TriggerDebouncedUpdate();
-            }
-        }
-
-        private async Task SendToPythonServer()
-        {
-            // Батчинг: не отправляем чаще чем раз в 2 секунды
-            var timeSinceLastUpdate = (DateTime.Now - lastHttpUpdate).TotalSeconds;
-            if (timeSinceLastUpdate < UPDATE_COOLDOWN_SECONDS)
-            {
-                return;
-            }
-            
-            await httpSemaphore.WaitAsync().ConfigureAwait(false);
-            try
-            {
-                var data = new
-                {
-                    artist = State.Artist,
-                    title = State.Title,
-                    position = State.Position,
-                    duration = State.Duration,
-                    is_playing = State.IsPlaying,
-                    cover_version = State.CoverVersion,
-                    status = State.Status,
-                    source_id = State.SourceId
-                };
-
-                var json = JsonSerializer.Serialize(data);
-                using var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                // Используем встроенный таймаут HttpClient (5 секунд)
-                using var response = await httpClient.PostAsync($"{pythonServerUrl}/update_from_cs", content).ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                
-                lastHttpUpdate = DateTime.Now;
-            }
-            catch (TaskCanceledException)
-            {
-                // Таймаут - игнорируем
-            }
-            catch (HttpRequestException)
-            {
-                // Сетевая ошибка - игнорируем
-            }
-            finally
-            {
-                httpSemaphore.Release();
+                // Queue update using UpdateQueue
+                updateQueue?.QueueUpdate(State);
             }
         }
 
@@ -613,19 +534,20 @@ namespace NowMediaMonitor
                             sessionManager.SessionsChanged -= OnSessionsChanged;
                         }
 
-                        if (currentSession != null)
-                        {
-                            currentSession.MediaPropertiesChanged -= OnMediaPropertiesChanged;
-                            currentSession.PlaybackInfoChanged -= OnPlaybackInfoChanged;
-                            currentSession.TimelinePropertiesChanged -= OnTimelinePropertiesChanged;
-                        }
-
-                        // Dispose timers and locks
-                        debounceTimer?.Dispose();
-                        configPollerTimer?.Dispose();
-                        updateLock?.Dispose();
-                        httpSemaphore?.Dispose();
-                        httpClient?.Dispose();
+                        // Dispose new components
+                        healthMonitor?.Stop();
+                        healthMonitor?.Dispose();
+                        
+                        configPoller?.Stop();
+                        configPoller?.Dispose();
+                        
+                        eventSubscriptionManager?.Unsubscribe();
+                        eventSubscriptionManager?.Dispose();
+                        
+                        updateQueue?.Dispose();
+                        httpClientPool?.Dispose();
+                        
+                        recoveryManager?.Dispose();
 
                         Console.WriteLine("🧹 MediaMonitor resources cleaned up");
                     }

@@ -165,11 +165,194 @@ python test_cpu_stability.py
 - Ensure system is not under heavy load
 - Wait for system to stabilize before running test
 
+## Test: High-Frequency Update Stress Test
+
+**Files:** 
+- `test_stress_high_frequency.py` (full 10-minute test)
+- `test_stress_high_frequency_quick.py` (quick 2-minute test)
+
+**Purpose:** Verifies that MediaMonitor can handle rapid media changes (every 2 seconds) without losing updates or becoming unresponsive.
+
+**Requirements tested:** 
+- 1.1: MediaMonitor detects and propagates track changes continuously
+- 5.1: Debounce timer uses timeout when acquiring update lock
+- 5.2: HTTP semaphore uses timeout to prevent indefinite blocking
+
+### How to Run
+
+Full test (10 minutes):
+```bash
+cd MediaMonitor
+python test_stress_high_frequency.py
+```
+
+Quick test (2 minutes):
+```bash
+cd MediaMonitor
+python test_stress_high_frequency_quick.py
+```
+
+### Test Parameters
+
+**Full Test:**
+- **Duration:** 10 minutes
+- **Media change interval:** 2 seconds
+- **Expected updates:** ~300
+- **Pass criteria:** 
+  - Update success rate ≥ 90%
+  - No intervals > 10 seconds between updates
+  - System remains responsive
+
+**Quick Test:**
+- **Duration:** 2 minutes
+- **Media change interval:** 2 seconds
+- **Expected updates:** ~60
+- **Pass criteria:** Same as full test
+
+### What the Test Does
+
+1. Starts a mock Python server to receive updates
+2. Builds and starts MediaMonitor with diagnostic mode
+3. Simulates rapid media changes every 2 seconds
+4. Monitors:
+   - Update count and success rate
+   - Inter-update intervals (responsiveness)
+   - System resource usage (memory, CPU)
+   - Timeout events (lock and HTTP timeouts)
+5. Analyzes results and determines pass/fail
+6. Saves detailed report to file
+
+### Expected Output
+
+```
+================================================================================
+  MediaMonitor High-Frequency Update Stress Test
+================================================================================
+Duration: 10 minutes
+Media change interval: 2 seconds
+Expected updates: ~300
+================================================================================
+
+🌐 Starting mock Python server...
+✅ Mock server started on port 8080
+🔨 Building MediaMonitor...
+✅ Build successful
+🚀 Starting MediaMonitor...
+✅ MediaMonitor started (PID: 12345)
+🎵 Starting media change simulator...
+✅ Media simulator started (changes every 2s)
+📊 Initial memory: 45.2 MB
+
+🔬 Test running for 10 minutes...
+
+⏱️  1.0 min elapsed:
+   Simulated changes: 30
+   Updates received: 28
+   Memory: 46.1 MB
+   CPU: 2.3%
+
+[... more status updates ...]
+
+================================================================================
+  Test Results Analysis
+================================================================================
+
+📈 Update Statistics:
+   Total updates received: 285
+   Expected updates: ~300
+   Update success rate: 95.0%
+   Average update rate: 28.5 updates/minute
+
+🔍 Lost Update Analysis:
+   ✅ No lost updates detected (all sequence numbers consecutive)
+
+⚡ System Responsiveness:
+   Average inter-update interval: 2.11s
+   Maximum inter-update interval: 3.45s
+   Expected interval: 2s
+   ✅ No significant delays detected
+
+⏱️  Timeout Analysis:
+   ✅ No timeouts detected
+
+================================================================================
+  Overall Assessment
+================================================================================
+✅ TEST PASSED
+
+Requirements validated:
+  ✅ 1.1: MediaMonitor detected and propagated track changes continuously
+  ✅ 5.1: Debounce timer handled high-frequency updates without deadlock
+  ✅ 5.2: HTTP semaphore prevented indefinite blocking
+  ✅ Update success rate: 95.0%
+  ✅ System remained responsive throughout test
+================================================================================
+
+📝 Detailed report saved to: stress_test_report_20241208_143045.txt
+```
+
+### Interpreting Results
+
+**PASS:** 
+- Update success rate ≥ 90%
+- No intervals > 10 seconds
+- System remained responsive
+- Indicates proper handling of high-frequency updates
+
+**FAIL:**
+- Low success rate (< 90%) may indicate:
+  - Debouncing too aggressive
+  - Lock timeout issues
+  - HTTP semaphore problems
+- Long intervals (> 10s) may indicate:
+  - Deadlock conditions
+  - Resource exhaustion
+  - System overload
+
+### Detailed Report
+
+The test saves a detailed report to `stress_test_report_YYYYMMDD_HHMMSS.txt` containing:
+- Complete test configuration
+- All updates received (first 100)
+- All timeout events detected
+- Full analysis results
+
+See `TEST_STRESS_HIGH_FREQUENCY.md` for more details.
+
+## Test: Extended Operation Test
+
+**Files:**
+- `test_extended_operation.py` (full 30-minute test)
+- `test_extended_operation_quick.py` (quick 5-minute test)
+
+**Purpose:** Verifies continuous operation for extended periods with simulated media changes.
+
+**Requirements tested:**
+- 1.2: Maintains active event subscriptions without degradation
+- 6.1-6.5: Extended operation validation
+
+See `TEST_EXTENDED_OPERATION.md` for details.
+
+## Test: Recovery Simulation Test
+
+**Files:**
+- `test_recovery_simulation.py` (full test with multiple cycles)
+- `test_recovery_simulation_quick.py` (quick single-cycle test)
+
+**Purpose:** Tests automatic recovery from event subscription failures.
+
+**Requirements tested:**
+- 1.3: Detects event subscription failure and re-establishes subscriptions
+- 3.1: Triggers automatic recovery after 30 seconds without updates
+- 3.5: Logs recovery outcome and verifies success
+
+See `TEST_RECOVERY_SIMULATION.md` for details.
+
 ## Future Tests
 
 Additional tests planned (see tasks.md):
 
-- **24-hour memory stability test** (Task 14)
-  - Longer duration test
-  - Monitors memory growth and handle count
-  - Verifies no memory leaks over extended operation
+- **ConfigPoller isolation test** (Task 14)
+  - Simulates ConfigPoller failures
+  - Verifies media updates continue unaffected
+  - Tests configuration sync after failures stop

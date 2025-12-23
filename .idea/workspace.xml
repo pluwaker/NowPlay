@@ -6,37 +6,33 @@
   <component name="ChangeListManager">
     <list default="true" id="38ef67e5-b008-4d2e-845d-b2e9851ddd32" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MediaMonitor/DiagnosticLogger.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/DiagnosticLogger.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MediaMonitor/EventSubscriptionManager.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/EventSubscriptionManager.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MediaMonitor/HealthMonitor.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/HealthMonitor.cs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/MediaMonitor/IsolatedConfigPoller.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/IsolatedConfigPoller.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/MediaMonitor.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/MediaMonitor.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/Program.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/Program.cs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/TEST_README.md" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/TEST_README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.deps.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.deps.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.runtimeconfig.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Debug/net6.0-windows10.0.19041.0/MediaMonitor.runtimeconfig.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/bin/Release/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.GeneratedMSBuildEditorConfig.editorconfig" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.GeneratedMSBuildEditorConfig.editorconfig" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.csproj.CoreCompileInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.csproj.CoreCompileInputs.cache" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.genruntimeconfig.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.genruntimeconfig.cache" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Debug/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfo.cs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.AssemblyInfoInputs.cache" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.csproj.CoreCompileInputs.cache" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.csproj.CoreCompileInputs.cache" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.pdb" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.pdb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/MediaMonitor.sourcelink.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/ref/MediaMonitor.dll" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" beforeDir="false" afterPath="$PROJECT_DIR$/MediaMonitor/obj/Release/net6.0-windows10.0.19041.0/refint/MediaMonitor.dll" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TZ_NowPlay.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/TZ_NowPlay.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/TZ_OGLAVLENIE.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/TZ_OGLAVLENIE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/songinfo/cover.png" beforeDir="false" afterPath="$PROJECT_DIR$/songinfo/cover.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_mediamonitor_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_mediamonitor_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/pages/settings_page.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/pages/settings_page.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/mediamonitor_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/mediamonitor_manager.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -75,7 +71,7 @@
     &quot;Python.test_memory_stability.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;#1 on optimisation&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;optimisation&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;H:/VKR/NowPlay&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;

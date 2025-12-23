@@ -395,14 +395,20 @@ namespace NowMediaMonitor
             
             try
             {
-                var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-                var sessions = manager.GetSessions();
+                // КРИТИЧНО: Переиспользуем существующий sessionManager вместо создания нового
+                // Каждый RequestAsync() создает новый дескриптор!
+                if (sessionManager == null)
+                {
+                    return; // SessionManager еще не инициализирован
+                }
+                
+                var sessions = sessionManager.GetSessions();
                 
                 var sources = new List<object>();
                 var currentSourceIds = new List<string>();
                 var seenIds = new HashSet<string>();
                 
-                // Обрабатываем сессии (WinRT объекты не требуют Dispose)
+                // Обрабатываем сессии и освобождаем их после использования
                 foreach (var session in sessions)
                 {
                     try
@@ -474,7 +480,9 @@ namespace NowMediaMonitor
             Console.WriteLine($"🔍 Ищем сессию для источника: {selectedSource}");
             var sessions = manager.GetSessions();
             
-            // Ищем сессию по выбранному источнику (WinRT объекты не требуют Dispose)
+            GlobalSystemMediaTransportControlsSession? foundSession = null;
+            
+            // Ищем сессию по выбранному источнику и освобождаем остальные
             foreach (var session in sessions)
             {
                 try
@@ -484,10 +492,17 @@ namespace NowMediaMonitor
                     if (appId == selectedSource)
                     {
                         Console.WriteLine($"✅ Найдена сессия для {selectedSource}");
-                        return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(session);
+                        foundSession = session;
+                        // НЕ освобождаем найденную сессию - она будет использоваться
                     }
                 }
                 catch { }
+            }
+
+            // Если нашли, возвращаем
+            if (foundSession != null)
+            {
+                return Task.FromResult<GlobalSystemMediaTransportControlsSession?>(foundSession);
             }
 
             // Если не нашли, возвращаем текущую

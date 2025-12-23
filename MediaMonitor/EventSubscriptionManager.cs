@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Media.Control;
 
@@ -27,6 +28,10 @@ namespace NowMediaMonitor
         private GlobalSystemMediaTransportControlsSession? currentSession;
         private bool isSubscribed = false;
         private readonly object lockObject = new object();
+        
+        // Семафор для контроля параллельных обработчиков событий
+        private readonly SemaphoreSlim eventProcessingSemaphore = new SemaphoreSlim(1, 1);
+        private readonly TimeSpan eventProcessingTimeout = TimeSpan.FromSeconds(2);
         
         // Events
         public event EventHandler<MediaUpdateEventArgs>? MediaUpdated;
@@ -177,11 +182,21 @@ namespace NowMediaMonitor
             {
                 Console.WriteLine($"🎵 Event: MediaPropertiesChanged at {timestamp:HH:mm:ss.fff}");
                 
-                // Propagate event to MediaMonitor
+                // Propagate event to MediaMonitor with semaphore control
                 _ = Task.Run(async () =>
                 {
+                    bool semaphoreAcquired = false;
                     try
                     {
+                        // Пытаемся получить семафор с таймаутом
+                        semaphoreAcquired = await eventProcessingSemaphore.WaitAsync(eventProcessingTimeout);
+                        
+                        if (!semaphoreAcquired)
+                        {
+                            Console.WriteLine($"  ⚠️ MediaPropertiesChanged: Skipping event (previous event still processing)");
+                            return;
+                        }
+                        
                         var mediaInfo = await sender.TryGetMediaPropertiesAsync();
                         var timeline = sender.GetTimelineProperties();
                         var playback = sender.GetPlaybackInfo();
@@ -208,6 +223,13 @@ namespace NowMediaMonitor
                     {
                         Console.WriteLine($"  ❌ Error in MediaPropertiesChanged handler: {ex.Message}");
                     }
+                    finally
+                    {
+                        if (semaphoreAcquired)
+                        {
+                            eventProcessingSemaphore.Release();
+                        }
+                    }
                 });
             }
             catch (Exception ex)
@@ -230,11 +252,21 @@ namespace NowMediaMonitor
             {
                 Console.WriteLine($"▶️ Event: PlaybackInfoChanged at {timestamp:HH:mm:ss.fff}");
                 
-                // Propagate event to MediaMonitor
+                // Propagate event to MediaMonitor with semaphore control
                 _ = Task.Run(async () =>
                 {
+                    bool semaphoreAcquired = false;
                     try
                     {
+                        // Пытаемся получить семафор с таймаутом
+                        semaphoreAcquired = await eventProcessingSemaphore.WaitAsync(eventProcessingTimeout);
+                        
+                        if (!semaphoreAcquired)
+                        {
+                            Console.WriteLine($"  ⚠️ PlaybackInfoChanged: Skipping event (previous event still processing)");
+                            return;
+                        }
+                        
                         var mediaInfo = await sender.TryGetMediaPropertiesAsync();
                         var timeline = sender.GetTimelineProperties();
                         var playback = sender.GetPlaybackInfo();
@@ -264,6 +296,13 @@ namespace NowMediaMonitor
                     {
                         Console.WriteLine($"  ❌ Error in PlaybackInfoChanged handler: {ex.Message}");
                     }
+                    finally
+                    {
+                        if (semaphoreAcquired)
+                        {
+                            eventProcessingSemaphore.Release();
+                        }
+                    }
                 });
             }
             catch (Exception ex)
@@ -286,11 +325,21 @@ namespace NowMediaMonitor
             {
                 Console.WriteLine($"⏱ Event: TimelinePropertiesChanged at {timestamp:HH:mm:ss.fff}");
                 
-                // Propagate event to MediaMonitor
+                // Propagate event to MediaMonitor with semaphore control
                 _ = Task.Run(async () =>
                 {
+                    bool semaphoreAcquired = false;
                     try
                     {
+                        // Пытаемся получить семафор с таймаутом
+                        semaphoreAcquired = await eventProcessingSemaphore.WaitAsync(eventProcessingTimeout);
+                        
+                        if (!semaphoreAcquired)
+                        {
+                            Console.WriteLine($"  ⚠️ TimelinePropertiesChanged: Skipping event (previous event still processing)");
+                            return;
+                        }
+                        
                         var mediaInfo = await sender.TryGetMediaPropertiesAsync();
                         var timeline = sender.GetTimelineProperties();
                         var playback = sender.GetPlaybackInfo();
@@ -325,6 +374,13 @@ namespace NowMediaMonitor
                     catch (Exception ex)
                     {
                         Console.WriteLine($"  ❌ Error in TimelinePropertiesChanged handler: {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (semaphoreAcquired)
+                        {
+                            eventProcessingSemaphore.Release();
+                        }
                     }
                 });
             }
@@ -363,6 +419,7 @@ namespace NowMediaMonitor
                 if (disposing)
                 {
                     Unsubscribe();
+                    eventProcessingSemaphore?.Dispose();
                     Console.WriteLine("🧹 EventSubscriptionManager disposed");
                 }
                 disposed = true;

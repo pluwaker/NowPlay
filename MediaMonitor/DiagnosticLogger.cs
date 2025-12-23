@@ -123,6 +123,30 @@ namespace NowMediaMonitor
         }
         
         /// <summary>
+        /// Logs handle count for resource leak detection (only in diagnostic mode)
+        /// </summary>
+        public static void LogHandleCount()
+        {
+            if (!diagnosticMode)
+            {
+                return;
+            }
+            
+            try
+            {
+                using var process = System.Diagnostics.Process.GetCurrentProcess();
+                int handleCount = process.HandleCount;
+                long workingSet = process.WorkingSet64 / (1024 * 1024); // MB
+                
+                LogDiagnostic("ResourceMonitor", $"Handles: {handleCount}, Memory: {workingSet} MB");
+            }
+            catch
+            {
+                // Ignore errors getting process info
+            }
+        }
+        
+        /// <summary>
         /// Logs a recovery attempt (only in diagnostic mode)
         /// </summary>
         public static void LogRecovery(string step, bool success, string? details = null)

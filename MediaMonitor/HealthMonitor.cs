@@ -122,6 +122,9 @@ namespace NowMediaMonitor
                 Console.WriteLine($"[HEALTH] Heartbeat check: Last update {timeSinceLastUpdate.TotalSeconds:F1} seconds ago {(isHealthy ? "(healthy)" : "(UNHEALTHY)")}");
                 DiagnosticLogger.LogDiagnostic("HealthMonitor", $"Heartbeat: {timeSinceLastUpdate.TotalSeconds:F1}s ago");
                 
+                // Логируем количество дескрипторов для отслеживания утечек
+                DiagnosticLogger.LogHandleCount();
+                
                 if (timeSinceLastUpdate >= updateTimeout)
                 {
                     if (isHealthy)

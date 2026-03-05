@@ -432,6 +432,23 @@
     const colorCache = window.colorCache;
     const performanceStats = window.performanceStats;
 
+    function startProgressUpdate() {
+        if (progressInterval) clearInterval(progressInterval);
+        progressInterval = setInterval(() => {
+            if (isPlaying && currentPosition < totalDuration) {
+                currentPosition += 1;
+                updateProgress();
+            }
+        }, 1000);
+    }
+
+    function stopProgressUpdate() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }
+
     function updateProgress() {
         if (totalDuration > 0) {
             const progressPercent = (currentPosition / totalDuration) * 100;
@@ -569,7 +586,7 @@
                 if (currentCover) currentCover.src = defaultCoverSrc;
                 if (nextCover && nextCover !== currentCover) nextCover.src = defaultCoverSrc;
                 stopVisualizer(visualizer);
-                stopProgressUpdate(progressInterval);
+                stopProgressUpdate();
 
                 currentPosition = 0;
                 totalDuration = 0;
@@ -599,10 +616,9 @@
         if (data.is_playing !== undefined) {
             isPlaying = data.is_playing;
             if (isPlaying) {
-                const state = { isPlaying, currentPosition, totalDuration };
-                progressInterval = startProgressUpdate(state, updateProgress);
+                startProgressUpdate();
             } else {
-                stopProgressUpdate(progressInterval);
+                stopProgressUpdate();
             }
         }
 
@@ -761,14 +777,14 @@
         ws.onclose = () => {
             setStatus("Соединение потеряно");
             stopVisualizer(visualizer);
-            stopProgressUpdate(progressInterval);
+            stopProgressUpdate();
             reconnect();
         };
 
         ws.onerror = (err) => {
             console.error("WebSocket error:", err);
             stopVisualizer(visualizer);
-            stopProgressUpdate(progressInterval);
+            stopProgressUpdate();
             reconnect();
         };
     }
@@ -803,14 +819,13 @@
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stopVisualizer(visualizer);
-            stopProgressUpdate(progressInterval);
+            stopProgressUpdate();
         } else {
             if (ws && ws.readyState === WebSocket.OPEN && currentConfig.wave_enabled !== false) {
                 animateVisualizer(visualizer, currentConfig);
             }
             if (isPlaying) {
-                const state = { isPlaying, currentPosition, totalDuration };
-                progressInterval = startProgressUpdate(state, updateProgress);
+                startProgressUpdate();
             }
         }
     });

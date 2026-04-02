@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "F+IUsLVEQGg=",
+  "success": true,
+  "projectFilePath": "H:\\VKR\\NowPlay\\MediaMonitor\\MediaMonitor.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\pluwaker\\.nuget\\packages\\microsoft.windows.sdk.net.ref\\10.0.19041.55\\microsoft.windows.sdk.net.ref.10.0.19041.55.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -5,12 +5,18 @@ from tkinter import messagebox
 import socket
 import os
 import tkinter
-from now_server.now import run_server
+from pathlib import Path
+import sys
 import urllib.request
 import urllib.error
 import json
 
-def find_free_port(start_port=8080, max_port=9000):
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+from now_server.now import (run_server)
+from ui.mediamonitor_manager import MediaMonitorManager
+
+def find_free_port(start_port=58080, max_port=59000):
     for port in range(start_port, max_port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
@@ -18,7 +24,7 @@ def find_free_port(start_port=8080, max_port=9000):
                 return port
             except OSError:
                 continue
-    raise OSError("Не удалось найти свободный порт в диапазоне 8080–9000")
+    raise OSError("Не удалось найти свободный порт в диапазоне 58080–59000")
 
 
 # Функция больше не нужна - сервер запускается напрямую в потоке
@@ -35,6 +41,10 @@ class NowPlayApp(ctk.CTk):
         self.obs_url = ""
         self.server_process = None
         self.obs_link = tkinter.StringVar()
+        self.mediamonitor_manager = MediaMonitorManager()
+
+        # Register window close handler
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # ====== Боковое меню ======
         self.sidebar = ctk.CTkFrame(self, width=160, corner_radius=0)
@@ -193,6 +203,14 @@ class NowPlayApp(ctk.CTk):
 
             self.obs_link.set(self.obs_url)
             print(f"✅ Сервер запущен на {self.obs_url}")
+            
+            # Start MediaMonitor after server is running with correct port
+            if not self.mediamonitor_manager.start(port=self.port):
+                messagebox.showwarning(
+                    "Предупреждение", 
+                    "Не удалось запустить MediaMonitor. Сервер работает, но данные о медиа не будут обновляться."
+                )
+            
             return True
 
         except Exception as e:
@@ -201,6 +219,9 @@ class NowPlayApp(ctk.CTk):
 
     def stop_server(self):
         """Останавливает сервер (вызывается из StartPage)"""
+        # Stop MediaMonitor first
+        self.mediamonitor_manager.stop()
+        
         # Для остановки asyncio сервера нужно закрыть event loop
         # Это сложно сделать безопасно, поэтому оставляем daemon=True
         # Сервер остановится автоматически при закрытии приложения
@@ -218,7 +239,15 @@ class NowPlayApp(ctk.CTk):
         """Проверяет запущен ли сервер"""
         return hasattr(self, 'server_thread') and self.server_thread and self.server_thread.is_alive()
 
+    def on_closing(self):
+        """Handle window close event"""
+        self.exit_app()
+
     def exit_app(self):
+        # Stop MediaMonitor if running with increased timeout
+        if self.mediamonitor_manager.is_running():
+            self.mediamonitor_manager.stop(timeout=3.0)
+        
         self.stop_server()
         self.destroy()
 

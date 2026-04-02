@@ -4,7 +4,7 @@ import asyncio
 import os
 import io
 from PIL import Image
-from config_manager import config_manager
+from src.config.config_manager import config_manager
 import urllib.parse
 import json
 import re
@@ -29,11 +29,44 @@ class CoverFetcher:
         self.use_itunes = self.config.get("use_itunes", True)
         self.use_yandex_music = self.config.get("use_yandex_music", True)
         self.use_vk_music = self.config.get("use_vk_music", True)
+        self.active_replace_task = None  # Отслеживание активной задачи замены обложки
+        self._session = None  # Переиспользуемая aiohttp сессия
+        self._connector = None  # Переиспользуемый коннектор
 
     def log(self, msg, error=False):
         if self.debug:
             prefix = "Ошибка" if error else "Отладка"
             print(f"{prefix} [DEBUG] {msg}")
+
+    async def _get_session(self):
+        """Получает или создает переиспользуемую aiohttp сессию"""
+        if self._session is None or self._session.closed:
+            # Создаем коннектор с ограничениями для предотвращения накопления соединений
+            self._connector = aiohttp.TCPConnector(
+                limit=10,  # Максимум 10 соединений
+                limit_per_host=5,  # Максимум 5 соединений на хост
+                ttl_dns_cache=300,  # Кэш DNS на 5 минут
+                force_close=False,  # Переиспользование соединений
+                enable_cleanup_closed=True  # Автоматическая очистка закрытых соединений
+            )
+            timeout = aiohttp.ClientTimeout(total=15, connect=5)
+            self._session = aiohttp.ClientSession(
+                connector=self._connector,
+                timeout=timeout
+            )
+            self.log("Создана новая aiohttp сессия")
+        return self._session
+
+    async def close(self):
+        """Закрывает aiohttp сессию и коннектор"""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self.log("aiohttp сессия закрыта")
+        if self._connector and not self._connector.closed:
+            await self._connector.close()
+            self.log("aiohttp коннектор закрыт")
+        self._session = None
+        self._connector = None
 
     async def get_best_cover(self, media_info, artist, title, output_dir):
         cover_path = os.path.join(output_dir, "cover.png")
@@ -63,9 +96,18 @@ class CoverFetcher:
                     system_quality = 0
 
                 if self.replace_after_system:
+                    # Отменяем предыдущую задачу замены, если она существует
+                    if self.active_replace_task and not self.active_replace_task.done():
+                        self.log("Отменяем предыдущую задачу замены обложки")
+                        self.active_replace_task.cancel()
+                        try:
+                            await self.active_replace_task
+                        except asyncio.CancelledError:
+                            pass
+                    
+                    # Создаем новую задачу замены обложки
                     try:
-                        loop = asyncio.get_running_loop()
-                        loop.create_task(
+                        self.active_replace_task = asyncio.create_task(
                             self._maybe_replace_with_external(artist, title, cover_path, system_quality)
                         )
                         self.log("Асинхронный поиск внешней обложки запущен.")
@@ -115,6 +157,9 @@ class CoverFetcher:
             self.log("Внешняя обложка не лучше системной — пропускаем замену.")
             return False
 
+        except asyncio.CancelledError:
+            self.log(f"Задача замены обложки отменена: {artist} - {title}")
+            raise
         except Exception as e:
             self.log(f"Ошибка в _maybe_replace_with_external: {e}", error=True)
             return False
@@ -163,8 +208,8 @@ class CoverFetcher:
                 "Origin": "https://music.yandex.ru"
             }
 
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-                async with session.get(url, headers=headers) as resp:
+            session = await self._get_session()
+            async with session.get(url, headers=headers) as resp:
                     self.log(f"Яндекс Музыка → {resp.status}")
 
                     if resp.status != 200:
@@ -243,10 +288,8 @@ class CoverFetcher:
                 "Referer": "https://music.apple.com/"
             }
 
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-                session.headers.update(headers)
-
-                async with session.get(url) as resp:
+            session = await self._get_session()
+            async with session.get(url, headers=headers) as resp:
                     self.log(f"iTunes → {resp.status} | {resp.headers.get('content-type')}")
 
                     if resp.status != 200:
@@ -329,8 +372,8 @@ class CoverFetcher:
                 f"?method=track.getInfo&api_key={api_key}&artist={artist}&track={title}&format=json&autocorrect=1"
             )
             self.log(f"Last.fm URL: {url}")
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get(url) as response:
+            session = await self._get_session()
+            async with session.get(url) as response:
                     if response.status != 200:
                         return None
                     data = await response.json()
@@ -361,73 +404,68 @@ class CoverFetcher:
                 "Referer": "https://vk.com/",
             }
 
-            connector = aiohttp.TCPConnector(verify_ssl=False)
-
-            async with aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(total=15),
-                    connector=connector
-            ) as session:
-                async with session.get(url, headers=headers) as resp:
-                    if resp.status != 200:
-                        self.log(f"VK Music: HTTP {resp.status}")
-                        return None
-
-                    html = await resp.text()
-
-                    # Ищем данные в нескольких местах
-                    import re
-                    import html as html_module
-
-                    # 1. Ищем в JSON данных
-                    json_patterns = [
-                        r'window\.AudioPage\s*=\s*({.*?});',
-                        r'var\s+audioData\s*=\s*({.*?});',
-                        r'<script[^>]*>.*?AudioPage\.data\s*=\s*({.*?});.*?</script>',
-                    ]
-
-                    for pattern in json_patterns:
-                        match = re.search(pattern, html, re.DOTALL)
-                        if match:
-                            try:
-                                json_str = html_module.unescape(match.group(1))
-                                data = json.loads(json_str)
-                                # Пробуем найти обложку в JSON структуре
-                                cover_url = self._extract_cover_from_vk_json(data)
-                                if cover_url:
-                                    self.log(f"VK Music: найдено в JSON → {cover_url}")
-                                    return await self._download_image(session, cover_url)
-                            except Exception as e:
-                                self.log(f"VK Music JSON parse error: {e}")
-                                continue
-
-                    # 2. Ищем напрямую в HTML по классам VK
-                    html_patterns = [
-                        r'class="audio_page_audio_cover[^"]*"[^>]*style="[^"]*url\(([^)]+)\)',
-                        r'data-background-image="([^"]+)"',
-                        r'<img[^>]*class="[^"]*cover[^"]*"[^>]*src="([^"]+)"',
-                        r'background-image:\s*url\([\'"]?([^\'")]+)',
-                    ]
-
-                    for pattern in html_patterns:
-                        matches = re.findall(pattern, html, re.IGNORECASE)
-                        for match in matches:
-                            if match and any(x in match for x in ['cover', 'album', 'thumb', 'audio']):
-                                cover_url = match
-                                if 'http' not in cover_url:
-                                    cover_url = 'https:' + cover_url if cover_url.startswith(
-                                        '//') else 'https://vk.com' + cover_url
-                                self.log(f"VK Music: найдено в HTML → {cover_url}")
-                                return await self._download_image(session, cover_url)
-
-                    # 3. Ищем по прямым ссылкам на изображения
-                    image_urls = re.findall(r'https://[^"\']+\.(?:jpg|jpeg|png|webp)[^"\']*', html)
-                    for img_url in image_urls:
-                        if any(x in img_url for x in ['/audio/', '/cover/', '/album/', 'thumb_']):
-                            self.log(f"VK Music: найдена прямая ссылка → {img_url}")
-                            return await self._download_image(session, img_url)
-
-                    self.log("VK Music: обложка не найдена после всех попыток")
+            session = await self._get_session()
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    self.log(f"VK Music: HTTP {resp.status}")
                     return None
+
+                html = await resp.text()
+
+                # Ищем данные в нескольких местах
+                import re
+                import html as html_module
+
+                # 1. Ищем в JSON данных
+                json_patterns = [
+                    r'window\.AudioPage\s*=\s*({.*?});',
+                    r'var\s+audioData\s*=\s*({.*?});',
+                    r'<script[^>]*>.*?AudioPage\.data\s*=\s*({.*?});.*?</script>',
+                ]
+
+                for pattern in json_patterns:
+                    match = re.search(pattern, html, re.DOTALL)
+                    if match:
+                        try:
+                            json_str = html_module.unescape(match.group(1))
+                            data = json.loads(json_str)
+                            # Пробуем найти обложку в JSON структуре
+                            cover_url = self._extract_cover_from_vk_json(data)
+                            if cover_url:
+                                self.log(f"VK Music: найдено в JSON → {cover_url}")
+                                return await self._download_image(session, cover_url)
+                        except Exception as e:
+                            self.log(f"VK Music JSON parse error: {e}")
+                            continue
+
+                # 2. Ищем напрямую в HTML по классам VK
+                html_patterns = [
+                    r'class="audio_page_audio_cover[^"]*"[^>]*style="[^"]*url\(([^)]+)\)',
+                    r'data-background-image="([^"]+)"',
+                    r'<img[^>]*class="[^"]*cover[^"]*"[^>]*src="([^"]+)"',
+                    r'background-image:\s*url\([\'"]?([^\'")]+)',
+                ]
+
+                for pattern in html_patterns:
+                    matches = re.findall(pattern, html, re.IGNORECASE)
+                    for match in matches:
+                        if match and any(x in match for x in ['cover', 'album', 'thumb', 'audio']):
+                            cover_url = match
+                            if 'http' not in cover_url:
+                                cover_url = 'https:' + cover_url if cover_url.startswith(
+                                    '//') else 'https://vk.com' + cover_url
+                            self.log(f"VK Music: найдено в HTML → {cover_url}")
+                            return await self._download_image(session, cover_url)
+
+                # 3. Ищем по прямым ссылкам на изображения
+                image_urls = re.findall(r'https://[^"\']+\.(?:jpg|jpeg|png|webp)[^"\']*', html)
+                for img_url in image_urls:
+                    if any(x in img_url for x in ['/audio/', '/cover/', '/album/', 'thumb_']):
+                        self.log(f"VK Music: найдена прямая ссылка → {img_url}")
+                        return await self._download_image(session, img_url)
+
+                self.log("VK Music: обложка не найдена после всех попыток")
+                return None
 
         except Exception as e:
             self.log(f"VK Music ошибка: {e}", error=True)

@@ -47,3 +47,7 @@ MEDIAMONITOR_FIX.md
 ЗАПУСК_БЕЗ_КОНСОЛИ.md
 NowPlay.rar
 /presentation
+*.md
+*.xml
+*.txt
+*.iss
